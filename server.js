@@ -2,6 +2,7 @@ const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const connectDB = require('./config/db');
+const readingRoutes = require('./routes/readingRoutes');
 
 // Ayarlar
 dotenv.config();
@@ -14,7 +15,7 @@ app.use(cors());
 // Veritabanına Bağlan
 connectDB();
 
-
+app.use('/api/readings', readingRoutes);
 
 // Test Endpoint (Scrum Master'a 'sistem hazır' mesajı)
 app.get('/', (req, res) => {
