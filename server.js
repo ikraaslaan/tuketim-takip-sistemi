@@ -14,7 +14,7 @@ app.use(cors());
 // Veritabanına Bağlan
 connectDB();
 
-const app = express();
+
 
 // Test Endpoint (Scrum Master'a 'sistem hazır' mesajı)
 app.get('/', (req, res) => {
