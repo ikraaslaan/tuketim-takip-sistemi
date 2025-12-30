@@ -44,6 +44,25 @@ const HomePage = () => {
     fetchInitialData();
   }, []);
 
+  // TAHMİN FONKSİYONU
+  const handleGetPrediction = async () => {
+    if (!currentNeighborhoodName) return;
+    try {
+      setPredLoading(true);
+      const res = await api.get(`/predictions?mahalle=${currentNeighborhoodName}`);
+      setPrediction(res.data.data);
+    } catch (err) {
+      alert("Tahmin oluşturulurken hata oluştu.");
+    } finally {
+      setPredLoading(false);
+    }
+  };
+
+  const searchNeighborhoods = useCallback(
+    (query) => neighborhoodNames.filter((n) => n.toLowerCase().includes(query.toLowerCase())),
+    [neighborhoodNames]
+  );
+  
   return (
     <View>
       <Text>Homepage</Text>
