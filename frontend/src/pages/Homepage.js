@@ -1,19 +1,26 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback, useContext } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Search, MapPin, Database, TrendingUp, Zap, Droplets, Flame, Clock, BrainCircuit, Shield } from "lucide-react"; 
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import bgVideo from "../assets/background.mp4";
-import api from "../services/api";
-import AuthContext from "../context/AuthContext";
+
+// Video yoksa hata vermesin diye CSS gradient kullanacağız, import'u kaldırdık.
+// api ve AuthContext importlarını kaldırdık (Backend yok).
+
+// --- SAHTE VERİ (Backend olmadığı için buraya ekledik) ---
+const MOCK_DATA = [
+  { mahalle: "Çaydaçıra", elektrik: { ortalama: 450 }, su: { ortalama: 45 }, dogalgaz: { ortalama: 120 } },
+  { mahalle: "Ataşehir", elektrik: { ortalama: 380 }, su: { ortalama: 30 }, dogalgaz: { ortalama: 90 } },
+  { mahalle: "Sürsürü", elektrik: { ortalama: 410 }, su: { ortalama: 35 }, dogalgaz: { ortalama: 110 } },
+  { mahalle: "Cumhuriyet", elektrik: { ortalama: 320 }, su: { ortalama: 25 }, dogalgaz: { ortalama: 80 } },
+  { mahalle: "Bahçelievler", elektrik: { ortalama: 390 }, su: { ortalama: 40 }, dogalgaz: { ortalama: 100 } },
+];
 
 const HomePage = () => {
-  const { user } = useContext(AuthContext);
-  // isAdmin ve cityAverages SİLİNDİ (Artık Yönetici.js'de)
-
+  // const { user } = useContext(AuthContext); // SİLDİK
+  
   const [allData, setAllData] = useState([]);
   const [neighborhoodNames, setNeighborhoodNames] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
+  
   const [selectedNeighborhood, setSelectedNeighborhood] = useState(null);
   const [currentNeighborhoodName, setCurrentNeighborhoodName] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -26,37 +33,35 @@ const HomePage = () => {
   
   const searchContainerRef = useRef(null);
 
+  // Verileri yükleme simülasyonu
   useEffect(() => {
-    const fetchInitialData = async () => {
-      try {
-        setLoading(true);
-        const response = await api.get("/stats/dashboard");
-        const data = response.data.data;
+    const fetchInitialData = () => {
+        // API yerine sahte veriyi yüklüyoruz
+        const data = MOCK_DATA;
         setAllData(data);
         setNeighborhoodNames(data.map(item => item.mahalle));
-        setError(null); // Başarılıysa hatayı temizle
-      } catch (err) {
-        console.error("Veri hatası:", err);
-        setError("Veriler sunucudan çekilemedi.");
-      } finally {
         setLoading(false);
-      }
     };
-    fetchInitialData();
+    // Biraz gecikme ekleyelim gerçekçi olsun
+    setTimeout(fetchInitialData, 500);
   }, []);
 
-  // TAHMİN FONKSİYONU
-  const handleGetPrediction = async () => {
+  // TAHMİN FONKSİYONU (Yapay Zeka Simülasyonu)
+  const handleGetPrediction = () => {
     if (!currentNeighborhoodName) return;
-    try {
-      setPredLoading(true);
-      const res = await api.get(`/predictions?mahalle=${currentNeighborhoodName}`);
-      setPrediction(res.data.data);
-    } catch (err) {
-      alert("Tahmin oluşturulurken hata oluştu.");
-    } finally {
-      setPredLoading(false);
-    }
+    setPredLoading(true);
+    
+    // API yerine rastgele tahmin üretiyoruz
+    setTimeout(() => {
+        const fakePred = {
+            mesaj: "Önümüzdeki ay kış şartları nedeniyle artış bekleniyor.",
+            elektrik_tahmini: Math.floor(Math.random() * 500) + 300,
+            su_tahmini: Math.floor(Math.random() * 50) + 20,
+            dogalgaz_tahmini: Math.floor(Math.random() * 150) + 80,
+        };
+        setPrediction(fakePred);
+        setPredLoading(false);
+    }, 1500); // 1.5 saniye bekleme efekti
   };
 
   const searchNeighborhoods = useCallback(
@@ -80,7 +85,7 @@ const HomePage = () => {
   }, []);
 
   const hydrateSelection = useCallback(
-    async (neighborhoodName) => {
+    (neighborhoodName) => {
       if (!neighborhoodName) return;
       
       setPrediction(null); // Tahmini temizle
@@ -97,7 +102,6 @@ const HomePage = () => {
         setSelectedNeighborhood(payload);
         setCurrentNeighborhoodName(payload.name);
         setSearchQuery(payload.name);
-        localStorage.setItem("lastSelectedNeighborhoodName", payload.name);
       } else {
         setSelectedNeighborhood({
           name: neighborhoodName,
@@ -139,16 +143,10 @@ const HomePage = () => {
     setHighlightedIndex(-1);
   };
 
+  // Varsayılan seçim
   useEffect(() => {
     if (!loading && neighborhoodNames.length > 0 && !selectedNeighborhood) {
-      const savedName = localStorage.getItem("lastSelectedNeighborhoodName");
-      let toPick = neighborhoodNames[0];
-      if (savedName && neighborhoodNames.includes(savedName)) {
-        toPick = savedName;
-      } else if (neighborhoodNames.includes("Çaydaçıra")) {
-        toPick = "Çaydaçıra";
-      }
-      handleSelectNeighborhood(toPick);
+      handleSelectNeighborhood("Çaydaçıra");
     }
   }, [loading, neighborhoodNames, selectedNeighborhood, handleSelectNeighborhood]);
 
@@ -169,15 +167,15 @@ const HomePage = () => {
     return colors[color] || colors.emerald;
   };
 
-  if (loading) return <div className="text-white text-center pt-20">Yükleniyor...</div>;
-  if (error) return <div className="text-red-500 text-center pt-20 font-bold text-xl bg-black/50 p-4 rounded-xl mx-auto max-w-md mt-10">{error} <br/> <span className="text-sm text-white font-normal">Lütfen sayfayı yenileyin veya sunucuyu kontrol edin.</span></div>;
+  if (loading) return <div className="text-gray-600 text-center pt-20">Yükleniyor...</div>;
 
   return (
-    <div className="relative min-h-screen overflow-hidden">
-      <video className="absolute inset-0 w-full h-full object-cover" src={bgVideo} autoPlay loop muted playsInline />
+    <div className="relative min-h-screen overflow-hidden bg-gray-900">
+      {/* Video yerine Gradient Arkaplan (Dosya eksik hatası vermemesi için) */}
+      <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-gray-900 via-emerald-900 to-black"></div>
       <div className="absolute inset-0 bg-black/40"></div>
 
-      <div className="relative z-10 pt-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto pb-16">
+      <div className="relative z-10 pt-10 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto pb-16">
         <div className="animate-fade-in-up">
           <div className="text-center mb-16 mt-8">
             <h1 className="text-5xl font-extrabold text-white drop-shadow-lg leading-tight mb-4">Şehir Tüketim Analizi</h1>
@@ -194,7 +192,7 @@ const HomePage = () => {
             {statsDisplay.map((stat, index) => {
               const Icon = stat.icon;
               return (
-                <div key={index} className="bg-white/20 backdrop-blur-md rounded-3xl p-7 shadow-lg border border-white/30 hover:-translate-y-1 transition-transform">
+                <div key={index} className="bg-white/10 backdrop-blur-md rounded-3xl p-7 shadow-lg border border-white/20 hover:-translate-y-1 transition-transform">
                   <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-5 border-2 ${getColorClasses(stat.color)}`}><Icon className="w-7 h-7" /></div>
                   <h3 className="text-md font-medium text-gray-200 mb-1">{stat.label}</h3>
                   <p className="text-3xl font-bold text-white">{stat.value}</p>
@@ -203,7 +201,7 @@ const HomePage = () => {
             })}
           </div>
 
-          <div id="search-section" ref={searchContainerRef} className="bg-white/15 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/20">
+          <div id="search-section" ref={searchContainerRef} className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/20">
             <h2 className="text-3xl font-bold text-white mb-8 flex items-center gap-3"><Search className="w-8 h-8 text-emerald-400" /> Detaylı Analiz</h2>
             
             <div className="relative mb-8">
@@ -214,7 +212,7 @@ const HomePage = () => {
                 onChange={handleSearchChange}
                 onFocus={() => setShowDropdown(true)}
                 onKeyDown={handleKeyDown}
-                placeholder="Mahalle adı girin..."
+                placeholder="Mahalle adı girin (Örn: Çaydaçıra)"
                 className="w-full pl-16 pr-5 py-5 text-lg border border-white/30 rounded-2xl bg-white/10 text-white placeholder:text-gray-300 focus:outline-none focus:bg-white/20 focus:border-emerald-400 transition-all"
               />
               {showDropdown && filteredNeighborhoods.length > 0 && (
@@ -305,19 +303,13 @@ const HomePage = () => {
         </div>
       </div>
 
-      {/* Floating "Kayıt Ol" Button for Non-Admins */}
-      {(!user || user.role !== 'admin') && (
-        <button
-          onClick={() => {
-            const event = new CustomEvent("openKayitForm");
-            window.dispatchEvent(event);
-          }}
-          className="fixed bottom-6 right-6 z-40 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-4 rounded-full shadow-lg font-semibold flex items-center gap-2 transition-all hover:scale-105 hover:shadow-xl"
-        >
-          <Shield className="w-5 h-5" />
-          Kayıt Ol
-        </button>
-      )}
+      <button
+        onClick={() => alert("Kayıt formu açıldı (Demo)")}
+        className="fixed bottom-6 right-6 z-40 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-4 rounded-full shadow-lg font-semibold flex items-center gap-2 transition-all hover:scale-105 hover:shadow-xl"
+      >
+        <Shield className="w-5 h-5" />
+        Kayıt Ol
+      </button>
     </div>
   );
 };
