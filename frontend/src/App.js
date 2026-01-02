@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from "react";
 import Navbar from "./components/Navbar";
-import HomePage from "./pages/HomePage"; 
+import HomePage from "./pages/Homepage"; 
 import Elektrik from "./pages/Elektrik";
 import Su from "./pages/Su";
 import Dogalgaz from "./pages/Dogalgaz";
