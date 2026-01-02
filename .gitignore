@@ -1,0 +1,14 @@
+# Node
+node_modules/
+frontend/node_modules/
+
+# Build çıktıları
+dist/
+build/
+
+# Env
+.env
+
+# Python
+venv/
+__pycache__/
