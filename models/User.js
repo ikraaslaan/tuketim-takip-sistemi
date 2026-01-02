@@ -12,12 +12,16 @@ const UserSchema = new mongoose.Schema({
     verificationToken: String
 });
 
-// Şifreyi kaydetmeden hemen önce hashle (Pre-save hook)
-UserSchema.pre('save', async function(next) {
-    if (!this.isModified('password')) return next();
+// Şifreyi kaydetmeden hemen önce hashle (Modern Async Sürümü)
+UserSchema.pre('save', async function() {
+    // Eğer şifre değişmemişse (örn: sadece isim güncelleniyorsa) işlemi geç
+    if (!this.isModified('password')) return;
+
+    // Şifreyi hashle
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
-    next();
+    
+    // next() çağırmaya gerek yok, async fonksiyon bitince Mongoose devam eder
 });
 
 module.exports = mongoose.model('User', UserSchema);
