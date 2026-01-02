@@ -38,16 +38,17 @@ def get_dashboard_data():
             
             # Eğer tüketim kayıtları varsa, ortalamaları hesapla
             try:
+                # MongoDB'deki gerçek yapı: Elektrik_Tuketim, Su_Tuketim, Dogalgaz_Tuketim
                 # Elektrik ortalaması
                 elektrik_pipeline = [
                     {"$match": {
                         "Mahalle": mahalle_adi,
-                        "Kaynak_Tipi": "Elektrik",
-                        "Tarih": {"$gte": thirty_days_ago}
+                        "Tarih": {"$gte": thirty_days_ago},
+                        "Elektrik_Tuketim": {"$exists": True, "$ne": None}
                     }},
                     {"$group": {
                         "_id": None,
-                        "ortalama": {"$avg": "$Tuketim_Miktari"}
+                        "ortalama": {"$avg": "$Elektrik_Tuketim"}
                     }}
                 ]
                 elektrik_result = list(tuketim_col.aggregate(elektrik_pipeline))
@@ -58,12 +59,12 @@ def get_dashboard_data():
                 su_pipeline = [
                     {"$match": {
                         "Mahalle": mahalle_adi,
-                        "Kaynak_Tipi": "Su",
-                        "Tarih": {"$gte": thirty_days_ago}
+                        "Tarih": {"$gte": thirty_days_ago},
+                        "Su_Tuketim": {"$exists": True, "$ne": None}
                     }},
                     {"$group": {
                         "_id": None,
-                        "ortalama": {"$avg": "$Tuketim_Miktari"}
+                        "ortalama": {"$avg": "$Su_Tuketim"}
                     }}
                 ]
                 su_result = list(tuketim_col.aggregate(su_pipeline))
@@ -74,12 +75,12 @@ def get_dashboard_data():
                 dogalgaz_pipeline = [
                     {"$match": {
                         "Mahalle": mahalle_adi,
-                        "Kaynak_Tipi": "Dogalgaz",
-                        "Tarih": {"$gte": thirty_days_ago}
+                        "Tarih": {"$gte": thirty_days_ago},
+                        "Dogalgaz_Tuketim": {"$exists": True, "$ne": None}
                     }},
                     {"$group": {
                         "_id": None,
-                        "ortalama": {"$avg": "$Tuketim_Miktari"}
+                        "ortalama": {"$avg": "$Dogalgaz_Tuketim"}
                     }}
                 ]
                 dogalgaz_result = list(tuketim_col.aggregate(dogalgaz_pipeline))
@@ -87,7 +88,9 @@ def get_dashboard_data():
                     dogalgaz_ortalama = round(dogalgaz_result[0]["ortalama"], 2)
             except Exception as e:
                 # Hata durumunda base değerleri kullan
-                pass
+                import traceback
+                print(f"Hata: {str(e)}")
+                print(traceback.format_exc())
             
             result.append({
                 "mahalle": mahalle_adi,
