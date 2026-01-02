@@ -8,4 +8,6 @@ router.post('/register', authController.register);
 // Email Doğrulama: POST /api/auth/verify
 router.post('/verify', authController.verifyEmail);
 
+router.post('/login', authController.login);
+
 module.exports = router;
