@@ -3,6 +3,7 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const connectDB = require('./config/db');
 const readingRoutes = require('./routes/readingRoutes');
+const authRoutes = require('./routes/authRoutes');
 
 // Ayarlar
 dotenv.config();
@@ -16,6 +17,7 @@ app.use(cors());
 connectDB();
 
 app.use('/api/readings', readingRoutes);
+app.use('/api/auth', authRoutes);
 
 // Test Endpoint (Scrum Master'a 'sistem hazır' mesajı)
 app.get('/', (req, res) => {
