@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const { sendVerificationEmail } = require('../services/mailService');
 
 
 exports.register = async (req, res) => {
@@ -19,12 +20,11 @@ exports.register = async (req, res) => {
 
         await user.save();
         
-        // 3. Mail doğrulama simülasyonu
-        console.log(`📧 Doğrulama maili gönderildi: ${email}`);
-        
-        res.status(201).json({ 
-            message: "Kayıt başarılı. Lütfen mail adresinizi doğrulayın (Simülasyon: /verify endpointini kullanın)." 
-        });
+        await sendVerificationEmail(user.email, user.verificationToken);
+
+                res.status(201).json({ 
+                message: "Kayıt başarılı. Doğrulama maili gönderildi. Terminaldeki linkten maili kontrol edebilirsiniz." 
+                    });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
