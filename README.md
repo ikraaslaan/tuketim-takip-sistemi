@@ -25,17 +25,6 @@ python3 -m venv venv
 pip install -r requirements.txt
 ```
 
-#### .env Dosyası Oluşturma
-`backend` klasöründe `.env` dosyası oluşturun ve aşağıdaki içeriği ekleyin:
-
-```env
-PORT=5001
-MONGO_URI=mongodb+srv://23frontend23_db_user:PaoDBStFSwY3nPR0@verikaynagi.bueal8j.mongodb.net/tuketim_analizi_db?retryWrites=true&w=majority
-JWT_SECRET=uB7s!z@j4m9XkLpY$tGw&Qv5rFhA2eN8cCdI6oE3P0ZfT
-SUPABASE_URL=https://lliwhbfkckpmmssgztrq.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=sb_secret_S2HoGjRirYrWNGsxYBrc8g_5vLzsvpn
-```
-
 **ÖNEMLİ:** `.env` dosyası git'e commit edilmez (güvenlik nedeniyle). Her geliştirici kendi `.env` dosyasını oluşturmalıdır.
 
 #### Flask Backend'i Başlatma
