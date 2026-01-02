@@ -1,4 +1,7 @@
 const User = require('../models/User');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const User = require('../models/User');
 
 exports.register = async (req, res) => {
     try {
@@ -21,6 +24,37 @@ exports.register = async (req, res) => {
         
         res.status(201).json({ 
             message: "Kayıt başarılı. Lütfen mail adresinizi doğrulayın (Simülasyon: /verify endpointini kullanın)." 
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+ exports.login = async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        // 1. Kullanıcı var mı?
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ message: "Kullanıcı bulunamadı." });
+
+        // 2. Mail doğrulanmış mı?
+        if (!user.isVerified) return res.status(401).json({ message: "Lütfen önce mailinizi doğrulayın!" });
+
+        // 3. Şifre doğru mu?
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) return res.status(400).json({ message: "Geçersiz şifre!" });
+
+        // 4. Token Üret (JWT)
+        const token = jwt.sign(
+            { id: user._id, role: user.role },
+            process.env.JWT_SECRET || 'gizli_anahtar',
+            { expiresIn: '24h' }
+        );
+
+        res.json({
+            message: "Giriş başarılı",
+            token,
+            user: { name: user.name, role: user.role }
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
