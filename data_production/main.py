@@ -11,7 +11,7 @@ sys.stdout.reconfigure(encoding='utf-8')
 import uretim_modelleri as motor
 
 from config import (
-    PROFIL_KONUT_STANDART
+    PROFIL_KONUT_STANDART,PROFIL_KONUT_GELENEKSEL
 )
 
 # --- 2. AYARLAR ---
@@ -21,7 +21,7 @@ zaman_adimi      = pd.Timedelta(minutes=30)
 output_filename  = "tuketim_verisi_tum_mahalleler_detayli.csv"
 
 # --- MONGODB BAĞLANTISI ---
-MONGODB_URI = "mongodb+srv://23frontend23_db_user:PaoDBStFSwY3nPR0@verikaynagi.bueal8j.mongodb.net"
+MONGODB_URI = "Mongodb adresinizi buraya ekleyin"
 DB_NAME = "tuketim_analizi_db"
 
 print("Veritabanına bağlanılıyor...")
@@ -52,6 +52,7 @@ if not mahalle_listesi_db:
 # PROFİL BİRLEŞTİRME (Logic Aynen Kalıyor)
 TANIMLI_PROFIL_SABLONLARI = {
     "konut_standart": PROFIL_KONUT_STANDART,
+    "konut_geleneksel": PROFIL_KONUT_GELENEKSEL
 }
 
 MAHALLE_PROFILLERI = {}
