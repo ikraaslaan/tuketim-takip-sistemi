@@ -47,3 +47,31 @@ exports.searchNeighborhoods = async (req, res) => {
         res.status(500).json({ message: "Arama hatası", error: error.message });
     }
 };
+
+exports.getMonthlyAverages = async (req, res) => {
+    try {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const averages = await Reading.aggregate([
+            { $match: { Tarih: { $gte: thirtyDaysAgo } } },
+            {
+                $group: {
+                    _id: { Mahalle: "$Mahalle", Kaynak: "$Kaynak_Tipi" },
+                    ortalamaTuketim: { $avg: "$Tuketim_Miktari" }
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    Mahalle: "$_id.Mahalle",
+                    Kaynak: "$_id.Kaynak",
+                    ortalamaTuketim: { $round: ["$ortalamaTuketim", 2] }
+                }
+            }
+        ]);
+        res.json(averages);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
