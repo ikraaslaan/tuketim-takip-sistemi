@@ -11,7 +11,8 @@ sys.stdout.reconfigure(encoding='utf-8')
 import uretim_modelleri as motor
 
 from config import (
-    PROFIL_KONUT_STANDART,PROFIL_KONUT_GELENEKSEL
+    PROFIL_KONUT_STANDART,PROFIL_KONUT_GELENEKSEL,
+    PROFIL_SANAYI
 )
 
 # --- 2. AYARLAR ---
@@ -52,7 +53,8 @@ if not mahalle_listesi_db:
 # PROFİL BİRLEŞTİRME (Logic Aynen Kalıyor)
 TANIMLI_PROFIL_SABLONLARI = {
     "konut_standart": PROFIL_KONUT_STANDART,
-    "konut_geleneksel": PROFIL_KONUT_GELENEKSEL
+    "konut_geleneksel": PROFIL_KONUT_GELENEKSEL,
+    "sanayi": PROFIL_SANAYI
 }
 
 MAHALLE_PROFILLERI = {}

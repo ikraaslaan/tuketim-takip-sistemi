@@ -61,3 +61,26 @@ PROFIL_KONUT_GELENEKSEL = {
         'dogalgaz_yaz_y':   [0.2, 0.2],
     }
 }
+
+PROFIL_SANAYI = {
+    'tip': 'sanayi',
+    'mevsimsel_carpani': {
+        'dogalgaz_kis': 1.0, 
+        'elektrik_kis': 1.0, 
+        'yaz_klima': 1.0, 
+        'yaz_su': 1.0
+    },
+    'gun_tipi_carpan': {},
+    'saatlik_profiller': {
+        'elektrik_hici_x':  [0,   7,   8,   17, 18, 24],
+        'elektrik_hici_y':  [1.5, 1.8, 2.5, 2.5, 1.8, 1.5],
+        'elektrik_hsonu_x': [0, 8, 16, 24],
+        'elektrik_hsonu_y': [1.8, 1.6, 1.8, 1.8], 
+        'su_hici_x':        [0,   7,   8,   17, 18, 24], 
+        'su_hici_y':        [0.8, 1.0, 1.2, 1.2, 1.0, 0.8],
+        'su_hsonu_x':       [0,   7,   8,   17, 18, 24],
+        'su_hsonu_y':       [0.8, 0.8, 0.9, 0.9, 0.9, 0.8],
+        'dogalgaz_kis_x':   [0, 24], 'dogalgaz_kis_y':   [1.0, 1.0],
+        'dogalgaz_yaz_x':   [0, 24], 'dogalgaz_yaz_y':   [1.0, 1.0],
+    }
+}
