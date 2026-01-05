@@ -1,4 +1,4 @@
-const Incident = require('../models/Incident');
+/*const Incident = require('../models/Incident');
 
 const mahalleler = ['Cumhuriyet', 'Hürriyet', 'İstasyon', 'Fatih', 'Sanayi'];
 const kaynaklar = ['Elektrik', 'Su', 'Dogalgaz'];
@@ -25,4 +25,4 @@ const generateRandomIncident = async () => {
     }
 };
 
-module.exports = { generateRandomIncident };
+module.exports = { generateRandomIncident }; */
