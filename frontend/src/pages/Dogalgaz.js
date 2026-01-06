@@ -171,18 +171,30 @@ const Dogalgaz = ({ selectedNeighborhood }) => {
   };
 
   const chartData = useMemo(() => {
-    // Backend zaten son 7 gün verisi gönderiyor. Eğer veri çoksa (30'dan fazla) son 30'u alalım.
-    const sliced = timeSeriesData.length > 30 ? timeSeriesData.slice(-30) : timeSeriesData;
+    if (!timeSeriesData || timeSeriesData.length === 0) return [];
     
-    // Etiketleri düzeltelim ve gerçekçi dalgalanmalar ekleyelim
-    return sliced.map((item, index) => {
+    // Tarihleri formatla - "2025-12-27" -> "27 Aralık"
+    const formatTarih = (tarihStr) => {
+      if (!tarihStr) return '';
+      try {
+        const [year, month, day] = tarihStr.split('-');
+        const monthNames = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 
+                            'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+        const monthName = monthNames[parseInt(month) - 1];
+        return `${day} ${monthName}`;
+      } catch (e) {
+        return tarihStr;
+      }
+    };
+    
+    return timeSeriesData.map((item) => {
       const baseValue = item.value || 0;
       const fluctuatedValue = baseValue > 0 ? addFluctuations(baseValue) : baseValue;
       return {
         ...item,
-        value: fluctuatedValue, // Apply fluctuation
-        // X ekseninde tarih değerini kullanıyoruz
-        tarih: item.tarih || `Gün ${index + 1}`,
+        value: fluctuatedValue,
+        tarih: formatTarih(item.tarih),
+        tarihRaw: item.tarih,
       };
     });
   }, [timeSeriesData]);
@@ -294,11 +306,11 @@ const Dogalgaz = ({ selectedNeighborhood }) => {
 
         {/* 5. Veri geldiyse (Grafik) */}
         {selectedNeighborhoodName && chartData.length > 0 && !dataLoading && (
-          <div className="bg-white rounded-3xl p-8 shadow-sm border border-orange-100/50 chart-container">
-            <h3 className="text-lg font-bold mb-6 text-gray-800">{selectedNeighborhoodName} Doğalgaz Tüketim Trendi (m³)</h3>
-            <div className="w-full h-[320px]">
+          <div className="bg-white rounded-3xl p-6 shadow-sm border border-orange-100/50 chart-container">
+            <h3 className="text-base font-semibold mb-4 text-gray-800">{selectedNeighborhoodName} - Doğalgaz Tüketim Trendi (m³)</h3>
+            <div className="w-full h-[350px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
+                <LineChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 20 }}>
                   <defs>
                     {/* GRAFİK RENK TANIMI (DOĞALGAZ TEMASI) */}
                     <linearGradient id="colorGas" x1="0" y1="0" x2="0" y2="1">
@@ -310,15 +322,17 @@ const Dogalgaz = ({ selectedNeighborhood }) => {
                   <XAxis 
                     dataKey="tarih" 
                     stroke="#6b7280" 
-                    tickMargin={8}
-                    tick={{ fontSize: 12 }}
-                    interval="preserveStartEnd"
+                    tickMargin={10}
+                    tick={{ fontSize: 13, fill: '#374151' }}
+                    interval={chartData.length <= 7 ? 0 : Math.floor(chartData.length / 7)}
+                    height={50}
                   />
                   <YAxis 
                     domain={['dataMin - 50', 'dataMax + 50']}
                     stroke="#6b7280" 
-                    tickMargin={8} 
-                    tick={{ fontSize: 12 }} 
+                    tickMargin={10}
+                    width={70}
+                    tick={{ fontSize: 13, fill: '#374151' }}
                   />
                   <Tooltip 
                     cursor={{ stroke: chartColors.stroke, strokeWidth: 1 }}

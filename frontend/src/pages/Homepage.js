@@ -216,16 +216,18 @@ const HomePage = () => {
               />
 
               {showDropdown && filteredNeighborhoods.length > 0 && (
-                <div className="absolute w-full mt-2 bg-gray-900 rounded-2xl z-50">
+                <div className="absolute w-full mt-2 bg-white rounded-2xl shadow-lg border border-emerald-200 z-50 max-h-64 overflow-y-auto">
                   {filteredNeighborhoods.map((n, index) => (
                     <button
                       key={n}
                       onClick={() => handleSelectNeighborhood(n)}
-                      className={`w-full text-left px-6 py-4 ${
-                        index === highlightedIndex ? "bg-emerald-900/80" : ""
+                      className={`w-full text-left px-6 py-4 hover:bg-emerald-50 transition-colors ${
+                        index === highlightedIndex ? "bg-emerald-50" : "bg-white"
+                      } ${index === 0 ? "rounded-t-2xl" : ""} ${
+                        index === filteredNeighborhoods.length - 1 ? "rounded-b-2xl" : "border-b border-emerald-100"
                       }`}
                     >
-                      {n}
+                      <span className="text-gray-800 font-medium">{n}</span>
                     </button>
                   ))}
                 </div>
