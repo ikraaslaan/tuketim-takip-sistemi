@@ -10,7 +10,18 @@ const app = express();
 
 // Middleware
 app.use(express.json());
-app.use(cors());
+
+// CORS Configuration - Tüm origin'lere izin ver (development için)
+// Production'da sadece belirli origin'lere izin vermek için CORS_ORIGIN environment variable kullanın
+const corsOptions = {
+    origin: process.env.CORS_ORIGIN 
+        ? process.env.CORS_ORIGIN.split(',')
+        : '*', // Tüm origin'lere izin ver
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+};
+app.use(cors(corsOptions));
 
 // Veritabanına Bağlan
 (async () => {
@@ -286,7 +297,7 @@ app.get('/', (req, res) => {
     res.json({ message: "Mahalle Yonetim Sistemi v2 API aktif." });
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => {
     console.log(`✅ Sunucu ${PORT} portunda calisiyor.`);
 });

@@ -1,8 +1,9 @@
 import axios from 'axios';
 
-// GÜNCELLENEN KISIM: localhost yerine 127.0.0.1 kullanıyoruz.
-// Mac cihazlarda localhost bazen algılanmaz, bu yüzden IP adresi daha garantidir.
-const API_URL = 'http://127.0.0.1:5001/api';
+// API URL'i environment variable'dan al, yoksa default değer kullan
+// Development için: http://localhost:5001/api veya http://127.0.0.1:5001/api
+// Production için: .env dosyasında REACT_APP_API_URL tanımla
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
 
 const api = axios.create({
   baseURL: API_URL,

@@ -238,7 +238,7 @@ const AnalitikModuller = () => {
             // Auto-hide toast after 5 seconds
             setTimeout(() => {
               setShowSuccessToast(false);
-            }, 5000);
+            }, 5001);
             
             setReportProgress("✅ Rapor başarıyla oluşturuldu ve yüklendi!");
           } catch (urlError) {
