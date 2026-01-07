@@ -1,6 +1,6 @@
 const PDFDocument = require('pdfkit');
 const supabase = require('../config/supabase');
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 
 exports.generateAndUploadReport = async (data, reportName) => {
     return new Promise((resolve, reject) => {
@@ -9,7 +9,7 @@ exports.generateAndUploadReport = async (data, reportName) => {
         doc.on('data', buffers.push.bind(buffers));
         doc.on('end', async () => {
             const pdfData = Buffer.concat(buffers);
-            const fileName = `reports/${reportName}-${Date.now()}.pdf`;
+            const fileName = `reports/${reportName}-${crypto.randomUUID()}.pdf`;
 
             // Supabase Storage'a Yükle
             const { data: uploadData, error } = await supabase.storage
