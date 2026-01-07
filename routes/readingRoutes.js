@@ -14,4 +14,7 @@ router.get('/monthly-averages', readingController.getMonthlyAverages);
 // Mahalle bazlı son veriler: /api/readings/latest/İstasyon
 router.get('/latest/:mahalleAdi', readingController.getLatestReadingsByNeighborhood);
 
+// İstatistik Özeti Tablosu: /api/readings/stats-summary?ay=12&yil=2025
+router.get('/stats-summary', readingController.getStatsSummary);
+
 module.exports = router;
