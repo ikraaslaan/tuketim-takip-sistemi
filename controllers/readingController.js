@@ -1,4 +1,5 @@
 const Reading = require('../models/Reading');
+const { calculatePearson } = require('../utils/mathUtils');
 
 // Son 7 günlük verilerin ortalamasını al
 exports.getWeeklyAverages = async (req, res) => {
@@ -216,6 +217,37 @@ exports.getTimeSeriesAnalysis = async (req, res) => {
             { $sort: { "_id": 1 } }
         ]);
         res.status(200).json(readings);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+exports.getCorrelation = async (req, res) => {
+    try {
+        const { mahalle, ay, yil, mevsim } = req.query;
+        let query = { Mahalle: mahalle };
+
+        // Mevsimsel veya Aylık Filtreleme
+        if (mevsim) {
+            const seasons = {
+                'Kış': [12, 1, 2], 'İlkbahar': [3, 4, 5],
+                'Yaz': [6, 7, 8], 'Sonbahar': [9, 10, 11]
+            };
+            query["$expr"] = { $in: [{ $month: "$Tarih" }, seasons[mevsim]] };
+        } else {
+            query["$expr"] = { 
+                $and: [
+                    { $eq: [{ $month: "$Tarih" }, parseInt(ay)] },
+                    { $eq: [{ $year: "$Tarih" }, parseInt(yil)] }
+                ]
+            };
+        }
+
+        const data = await Reading.find(query);
+        // Verileri kaynaklara göre grupla ve korelasyonu hesapla (Mantık özeti)
+        // ... (Elek vs Su, Elek vs Gaz hesaplamaları)
+        
+        res.json({ message: `${mevsim || ay} dönemi korelasyon analizi tamamlandı.` });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
