@@ -34,6 +34,28 @@ exports.getWeeklyAverages = async (req, res) => {
     }
 };
 
+// Seçilen mahallenin her kaynak için en son verisini getirir
+exports.getLatestReadingsByNeighborhood = async (req, res) => {
+    try {
+        const { mahalleAdi } = req.params;
+        const kaynaklar = ['Elektrik', 'Su', 'Dogalgaz'];
+        
+        // Her kaynak tipi için en son kaydı bulan asenkron döngü
+        const latestReadings = await Promise.all(kaynaklar.map(async (kaynak) => {
+            return await Reading.findOne({ 
+                Mahalle: mahalleAdi, 
+                Kaynak_Tipi: kaynak 
+            })
+            .sort({ Tarih: -1 }) // En son tarihi getir
+            .limit(1);
+        }));
+
+        res.status(200).json(latestReadings.filter(r => r !== null));
+    } catch (error) {
+        res.status(500).json({ message: "Son veriler çekilemedi", error: error.message });
+    }
+};
+
 //  Mahalle arama endpointi
 exports.searchNeighborhoods = async (req, res) => {
     try {
