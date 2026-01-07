@@ -21,16 +21,18 @@ exports.generateAndUploadReport = async (data, reportName) => {
         doc.moveDown();
 
         // 3. Verileri Yazdır (JSON.stringify yerine döngü kullanıyoruz)
-        if (data.tableData && Array.isArray(data.tableData)) {
-            data.tableData.forEach((item, index) => {
-                doc.fillColor('#2c3e50').fontSize(12).text(`${index + 1}. Mahalle: ${item.Mahalle}`);
-                doc.fillColor('#333').fontSize(10)
-                   .text(`   - Elektrik: ${item.Elektrik || '0'} | Su: ${item.Su || '0'} | Gaz: ${item.Dogalgaz || '0'}`)
-                   .moveDown(0.5);
-            });
-        } else {
-            doc.text("Gosterilecek veri bulunamadi.");
-        }
+        if (data.tableData && data.tableData.length > 0) {
+    data.tableData.forEach((item, index) => {
+        doc.fillColor('#2c3e50').fontSize(11).text(`${index + 1}. Mahalle: ${item.Mahalle}`);
+        doc.fillColor('#555').fontSize(9)
+           .text(`   > Elektrik (Ort/Zirve/Dusuk): ${item.Elektrik || 'Veri Yok'}`)
+           .text(`   > Su (Ort/Zirve/Dusuk): ${item.Su || 'Veri Yok'}`)
+           .text(`   > Dogalgaz (Ort/Zirve/Dusuk): ${item.Dogalgaz || 'Veri Yok'}`)
+           .moveDown(0.8);
+    });
+} else {
+    doc.fillColor('red').text("Secilen donem icin veritabaninda kayitli veri bulunamadi.");
+}
 
         doc.end();
     });

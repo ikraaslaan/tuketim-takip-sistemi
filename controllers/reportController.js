@@ -57,10 +57,62 @@ exports.listReports = async (req, res) => {
 };
 // Yardımcı fonksiyon: İstatistikleri hesapla (İstatistik endpoint'inden kopyaladık)
 async function getFullStats(month, year) {
-    const targetDate = new Date(year, month - 1, 1);
-    // Buraya daha önce yazdığımız calculateMonthlyStats mantığını entegre ediyoruz
-    
-    return await Reading.aggregate([  ]);
+    const start = new Date(year, month - 1, 1);
+    const end = new Date(year, month, 0, 23, 59, 59); // Ayın son günü
+
+    return await Reading.aggregate([
+        // 1. Aşama: İlgili ay ve yıldaki verileri filtrele
+        { 
+            $match: { 
+                Tarih: { $gte: start, $lte: end } 
+            } 
+        },
+        // 2. Aşama: Mahalle ve Kaynak Tipine göre grupla, analizleri yap
+        {
+            $group: {
+                _id: { Mahalle: "$Mahalle", Kaynak: "$Kaynak_Tipi" },
+                Ort: { $avg: "$Tuketim_Miktari" },
+                Zirve: { $max: "$Tuketim_Miktari" },
+                Dusuk: { $min: "$Tuketim_Miktari" }
+            }
+        },
+        // 3. Aşama: Veriyi mahalle bazında birleştir (Pivot)
+        {
+            $group: {
+                _id: "$_id.Mahalle",
+                kaynaklar: {
+                    $push: {
+                        k: "$_id.Kaynak",
+                        v: {
+                            stats: {
+                                $concat: [
+                                    { $toString: { $round: ["$Ort", 2] } }, " / ",
+                                    { $toString: { $round: ["$Zirve", 2] } }, " / ",
+                                    { $toString: { $round: ["$Dusuk", 2] } }
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        // 4. Aşama: Çıktıyı PDF'e uygun formatla
+        {
+            $project: {
+                _id: 0,
+                Mahalle: "$_id",
+                data: { $arrayToObject: "$kaynaklar" }
+            }
+        },
+        {
+            $project: {
+                Mahalle: 1,
+                Elektrik: "$data.Elektrik.stats",
+                Su: "$data.Su.stats",
+                Dogalgaz: "$data.Dogalgaz.stats"
+            }
+        }
+    ]);
 }
 
 exports.generateMonthlyStatsReport = async (req, res) => {
