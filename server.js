@@ -7,6 +7,7 @@ const authRoutes = require('./routes/authRoutes');
 const simulationRoutes = require('./routes/incidentRoutes');  
 const reportRoutes = require('./routes/reportRoutes');
 
+
 // Ayarlar
 dotenv.config();
 const app = express();
