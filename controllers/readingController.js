@@ -186,3 +186,37 @@ const calculateChange = (curr, prev) => {
     const change = ((curr - prev) / prev) * 100;
     return (change > 0 ? "+" : "") + change.toFixed(2) + "%";
 };
+
+// Zaman Serisi Analizi: Aylık tüketim trendleri
+exports.getTimeSeriesAnalysis = async (req, res) => {
+    try {
+        const { mahalle, yil } = req.query;
+        const readings = await Reading.aggregate([
+            { 
+                $match: { 
+                    Mahalle: mahalle, 
+                    Tarih: { 
+                        $gte: new Date(`${yil}-01-01`), 
+                        $lte: new Date(`${yil}-12-31`) 
+                    } 
+                } 
+            },
+            {
+                $group: {
+                    _id: { ay: { $month: "$Tarih" }, kaynak: "$Kaynak_Tipi" },
+                    toplam: { $sum: "$Tuketim_Miktari" }
+                }
+            },
+            {
+                $group: {
+                    _id: "$_id.ay",
+                    veriler: { $push: { k: "$_id.kaynak", v: "$toplam" } }
+                }
+            },
+            { $sort: { "_id": 1 } }
+        ]);
+        res.status(200).json(readings);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
