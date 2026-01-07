@@ -12,7 +12,7 @@ import uretim_modelleri as motor
 
 from config import (
     PROFIL_KONUT_STANDART,PROFIL_KONUT_GELENEKSEL,
-    PROFIL_SANAYI
+    PROFIL_SANAYI, PROFIL_KARMA
 )
 
 # --- 2. AYARLAR ---
@@ -54,7 +54,8 @@ if not mahalle_listesi_db:
 TANIMLI_PROFIL_SABLONLARI = {
     "konut_standart": PROFIL_KONUT_STANDART,
     "konut_geleneksel": PROFIL_KONUT_GELENEKSEL,
-    "sanayi": PROFIL_SANAYI
+    "sanayi": PROFIL_SANAYI,
+    "konut_karma": PROFIL_KARMA
 }
 
 MAHALLE_PROFILLERI = {}
