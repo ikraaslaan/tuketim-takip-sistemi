@@ -55,3 +55,31 @@ exports.listReports = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+// Yardımcı fonksiyon: İstatistikleri hesapla (İstatistik endpoint'inden kopyaladık)
+async function getFullStats(month, year) {
+    const targetDate = new Date(year, month - 1, 1);
+    // Buraya daha önce yazdığımız calculateMonthlyStats mantığını entegre ediyoruz
+    
+    return await Reading.aggregate([  ]);
+}
+
+exports.generateMonthlyStatsReport = async (req, res) => {
+    try {
+        const { month, year } = req.query;
+        
+        // 1. Gerçek veriyi DB'den çek
+        const stats = await getFullStats(month, year); 
+
+        // 2. PDF Servisine gerçek veriyi ve başlığı gönder
+        const reportData = {
+            title: `${month}/${year} İstatistik Özeti Raporu`,
+            subtitle: "Mahalle Bazlı Tüketim ve Değişim Analizi",
+            tableData: stats // Gerçek dizi buraya gidiyor
+        };
+        
+        const publicUrl = await generateAndUploadReport(reportData, `Istatistik-${month}-${year}`);
+        res.status(201).json({ message: "Gerçek veriyle rapor oluşturuldu", url: publicUrl });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
