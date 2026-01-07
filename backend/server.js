@@ -1,303 +1,132 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors');
-const { connectDB, getDB } = require('./config/db');
-const readingRoutes = require('./routes/readingRoutes');
 
-// Ayarlar
+// Rota Dosyaları
+const readingRoutes = require('./routes/readingRoutes');
+const statsRoutes = require('./routes/statsRoutes');
+const incidentRoutes = require('./routes/incidentRoutes');
+const predictionRoutes = require('./routes/predictionRoutes');
+const authRoutes = require('./routes/authRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const subscriberRoutes = require('./routes/subscriberRoutes');
+const subscriberVerificationRoutes = require('./routes/subscriberVerificationRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
+const supportRoutes = require('./routes/supportRoutes');
+
 dotenv.config();
+
 const app = express();
 
-// Middleware
-app.use(express.json());
-
-// CORS Configuration - Tüm origin'lere izin ver (development için)
-// Production'da sadece belirli origin'lere izin vermek için CORS_ORIGIN environment variable kullanın
-const corsOptions = {
-    origin: process.env.CORS_ORIGIN 
-        ? process.env.CORS_ORIGIN.split(',')
-        : '*', // Tüm origin'lere izin ver
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+// --- 1. MIDDLEWARE ---
+// Frontend (3000) erişimi için CORS izni
+app.use(cors({
+    origin: '*', 
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization']
-};
-app.use(cors(corsOptions));
+}));
+app.use(express.json({ limit: '50mb' })); // PDF upload için daha büyük limit
 
-// Veritabanına Bağlan
-(async () => {
-    try {
-        await connectDB();
-        console.log('✅ Database bağlantısı hazır');
-    } catch (err) {
-        console.error('❌ Database bağlantı hatası:', err);
-        process.exit(1);
+// Increase timeout for long-running requests (especially PDF generation)
+app.use((req, res, next) => {
+    // Set timeout to 5 minutes for analytics endpoints
+    if (req.path.includes('/analytics/generate-report')) {
+        req.setTimeout(300000); // 5 minutes
     }
-})();
+    next();
+});
 
-// Routes
+// --- 2. ROTALAR ---
 app.use('/api/readings', readingRoutes);
+app.use('/api/stats', statsRoutes);          
+app.use('/api/incidents', incidentRoutes);   
+app.use('/api/predictions', predictionRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/subscribers', subscriberRoutes);
+app.use('/api/verification/subscriber', subscriberVerificationRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/support', supportRoutes);
 
-// Dashboard endpoint - Flask'tan taşındı
-app.get('/api/stats/dashboard', async (req, res) => {
-    try {
-        let db;
-        try {
-            db = getDB();
-        } catch (err) {
-            // Database henüz bağlanmadıysa, bağlanmayı bekle
-            await connectDB();
-            db = getDB();
-        }
-        const tuketim_col = db.collection('tuketim_kayitlari');
-        const mahalle_tanim_col = db.collection('mahalle_tanimlari');
+// Test Rotası
+app.get('/', (req, res) => res.send('API Calisiyor...'));
 
-        // Mahalle tanımlarını al
-        const mahalleler = await mahalle_tanim_col.find({}).toArray();
-        const result = [];
-
-        // Son 30 günlük verileri al
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-        // Her mahalle için ortalamaları hesapla
-        for (const mahalle of mahalleler) {
-            const mahalle_adi = mahalle.mahalle_adi || '';
-
-            // Varsayılan değerler
-            let elektrik_ortalama = mahalle.base_elektrik || 0;
-            let su_ortalama = mahalle.base_su || 0;
-            let dogalgaz_ortalama = mahalle.base_dogalgaz || 0;
-
-            try {
-                // Elektrik ortalaması
-                const elektrik_pipeline = [
-                    {
-                        $match: {
-                            Mahalle: mahalle_adi,
-                            Tarih: { $gte: thirtyDaysAgo },
-                            Elektrik_Tuketim: { $exists: true, $ne: null }
-                        }
-                    },
-                    {
-                        $group: {
-                            _id: null,
-                            ortalama: { $avg: '$Elektrik_Tuketim' }
-                        }
-                    }
-                ];
-                const elektrik_result = await tuketim_col.aggregate(elektrik_pipeline).toArray();
-                if (elektrik_result.length > 0 && elektrik_result[0].ortalama) {
-                    elektrik_ortalama = Math.round(elektrik_result[0].ortalama * 100) / 100;
-                }
-
-                // Su ortalaması
-                const su_pipeline = [
-                    {
-                        $match: {
-                            Mahalle: mahalle_adi,
-                            Tarih: { $gte: thirtyDaysAgo },
-                            Su_Tuketim: { $exists: true, $ne: null }
-                        }
-                    },
-                    {
-                        $group: {
-                            _id: null,
-                            ortalama: { $avg: '$Su_Tuketim' }
-                        }
-                    }
-                ];
-                const su_result = await tuketim_col.aggregate(su_pipeline).toArray();
-                if (su_result.length > 0 && su_result[0].ortalama) {
-                    su_ortalama = Math.round(su_result[0].ortalama * 100) / 100;
-                }
-
-                // Doğalgaz ortalaması
-                const dogalgaz_pipeline = [
-                    {
-                        $match: {
-                            Mahalle: mahalle_adi,
-                            Tarih: { $gte: thirtyDaysAgo },
-                            Dogalgaz_Tuketim: { $exists: true, $ne: null }
-                        }
-                    },
-                    {
-                        $group: {
-                            _id: null,
-                            ortalama: { $avg: '$Dogalgaz_Tuketim' }
-                        }
-                    }
-                ];
-                const dogalgaz_result = await tuketim_col.aggregate(dogalgaz_pipeline).toArray();
-                if (dogalgaz_result.length > 0 && dogalgaz_result[0].ortalama) {
-                    dogalgaz_ortalama = Math.round(dogalgaz_result[0].ortalama * 100) / 100;
-                }
-            } catch (error) {
-                console.error(`Hata (${mahalle_adi}):`, error.message);
-            }
-
-            result.push({
-                mahalle: mahalle_adi,
-                elektrik: { ortalama: elektrik_ortalama },
-                su: { ortalama: su_ortalama },
-                dogalgaz: { ortalama: dogalgaz_ortalama }
-            });
-        }
-
-        res.json({ success: true, data: result });
-    } catch (error) {
-        console.error('Dashboard endpoint hatası:', error);
-        res.status(500).json({ success: false, error: error.message });
+// 404 Handler (Rota bulunamazsa)
+app.use((req, res, next) => {
+    if (!res.headersSent) {
+        res.status(404).json({ success: false, message: `Rota bulunamadı: ${req.method} ${req.path}` });
     }
 });
 
-// Timeseries endpoint - Flask'tan taşındı
-app.get('/api/stats/timeseries', async (req, res) => {
+// --- 3. VERİTABANI BAĞLANTISI ---
+const connectDB = async () => {
     try {
-        let db;
+        await mongoose.connect(process.env.MONGO_URI);
+        console.log('✅ MongoDB Başarıyla Bağlandı');
+        
+        // Ensure indexes are created for Reading model (tuketim_kayitlari collection)
+        // This prevents memory issues during sorting operations and enables fast queries
+        const Reading = require('./models/Reading');
+        
+        // Create all indexes defined in the schema (background: true for non-blocking)
         try {
-            db = getDB();
-        } catch (err) {
-            // Database henüz bağlanmadıysa, bağlanmayı bekle
-            await connectDB();
-            db = getDB();
-        }
-        
-        const mahalle = decodeURIComponent(req.query.mahalle || '');
-        const kaynak = (req.query.kaynak || '').toLowerCase();
-
-        console.log('Timeseries request:', { mahalle, kaynak });
-
-        if (!mahalle || !kaynak) {
-            return res.status(400).json({ success: false, error: 'mahalle ve kaynak parametreleri gerekli' });
-        }
-
-        const kaynak_map = {
-            'elektrik': 'Elektrik_Tuketim',
-            'su': 'Su_Tuketim',
-            'dogalgaz': 'Dogalgaz_Tuketim'
-        };
-
-        if (!kaynak_map[kaynak]) {
-            return res.status(400).json({ success: false, error: 'Geçersiz kaynak tipi. elektrik, su veya dogalgaz olmalı' });
-        }
-
-        const field_name = kaynak_map[kaynak];
-        const tuketim_col = db.collection('tuketim_kayitlari');
-
-        // Son 7 günlük verileri al
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-        const query = {
-            Mahalle: mahalle,
-            Tarih: { $gte: sevenDaysAgo },
-            [field_name]: { $exists: true, $ne: null }
-        };
-
-        // Günlük ortalamaları hesapla - Son 7 gün için her günün ortalaması
-        // Önce verileri çek, sonra JavaScript'te grupla (MongoDB'de dinamik field name zor)
-        console.log('Query:', JSON.stringify(query, null, 2));
-        const documents = await tuketim_col.find(query).sort({ Tarih: 1 }).toArray();
-        console.log('Documents bulundu:', documents.length);
-        
-        // Günlere göre grupla ve ortalamaları hesapla
-        const dailyData = {};
-        for (const doc of documents) {
-            const value = doc[field_name];
-            if (value !== null && value !== undefined) {
-                const tarih_obj = doc.Tarih;
-                let tarih_str;
-                if (tarih_obj instanceof Date) {
-                    tarih_str = tarih_obj.toISOString().split('T')[0];
-                } else {
-                    tarih_str = String(tarih_obj).substring(0, 10);
-                }
-                
-                if (!dailyData[tarih_str]) {
-                    dailyData[tarih_str] = { values: [], tarih: tarih_str };
-                }
-                dailyData[tarih_str].values.push(parseFloat(value));
+            await Reading.createIndexes({ background: true });
+            console.log('✅ Reading model indexes ensured (Tarih: -1, Mahalle: 1, Mahalle+Tarih compound)');
+        } catch (idxErr) {
+            if (idxErr.code !== 85) { // 85 = IndexOptionsConflict, index already exists
+                console.log('ℹ️ Indexes may already exist or creation failed:', idxErr.message);
+            } else {
+                console.log('✅ Indexes already exist');
             }
         }
         
-        // Her gün için ortalamayı hesapla
-        const time_series = Object.keys(dailyData)
-            .sort()
-            .map(tarih => {
-                const data = dailyData[tarih];
-                const ortalama = data.values.reduce((a, b) => a + b, 0) / data.values.length;
-                return {
-                    tarih: tarih,
-                    value: Math.round(ortalama * 100) / 100
-                };
-            });
-        
-        console.log('Time series sonuç:', time_series.length, 'gün');
-
-        // Önceki 7 gün için verileri çek (karşılaştırma)
-        const fourteenDaysAgo = new Date();
-        fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-
-        const prev_query = {
-            Mahalle: mahalle,
-            Tarih: { $gte: fourteenDaysAgo, $lt: sevenDaysAgo },
-            [field_name]: { $exists: true, $ne: null }
-        };
-
-        const prev_documents = await tuketim_col.find(prev_query).toArray();
-        const prev_values = prev_documents
-            .map(doc => doc[field_name])
-            .filter(val => val !== null && val !== undefined);
-
-        // İstatistikleri hesapla
-        let statistics = null;
-        if (time_series.length > 0) {
-            const values = time_series.map(item => item.value).filter(val => val !== null && val !== undefined);
-            if (values.length > 0) {
-                const ortalama = values.reduce((a, b) => a + b, 0) / values.length;
-                const prev_ortalama = prev_values.length > 0
-                    ? prev_values.reduce((a, b) => a + b, 0) / prev_values.length
-                    : ortalama;
-
-                let degisim_str = '0%';
-                let artis = false;
-
-                if (prev_ortalama > 0) {
-                    const degisim_yuzde = ((ortalama - prev_ortalama) / prev_ortalama) * 100;
-                    artis = degisim_yuzde > 0;
-                    degisim_str = `${artis ? '+' : ''}${degisim_yuzde.toFixed(1)}%`;
-                }
-
-                statistics = {
-                    ortalama: Math.round(ortalama * 100) / 100,
-                    degisim: degisim_str,
-                    artis: artis
-                };
+        // Explicitly ensure compound index for performance (CRITICAL for report generation)
+        try {
+            await Reading.collection.createIndex({ Mahalle: 1, Tarih: -1 }, { background: true });
+            console.log('✅ Mahalle + Tarih compound index oluşturuldu');
+        } catch (idxErr) {
+            if (idxErr.code !== 85) {
+                console.log('ℹ️ Mahalle + Tarih index zaten mevcut veya oluşturulamadı:', idxErr.message);
             }
         }
-
-        console.log('Time series sonuç:', time_series.length, 'gün, Statistics:', statistics ? 'var' : 'yok');
         
-        res.json({
-            success: true,
-            data: {
-                timeSeries: time_series,
-                statistics: statistics
+        try {
+            await Reading.collection.createIndex({ Mahalle: 1 }, { background: true });
+            console.log('✅ Mahalle index oluşturuldu');
+        } catch (idxErr) {
+            if (idxErr.code !== 85) {
+                console.log('ℹ️ Mahalle index zaten mevcut veya oluşturulamadı:', idxErr.message);
             }
-        });
-    } catch (error) {
-        console.error('Timeseries endpoint hatası:', error);
-        console.error('Stack:', error.stack);
-        res.status(500).json({ success: false, error: error.message, stack: error.stack });
+        }
+        
+    } catch (err) {
+        console.error('❌ MongoDB Hatası:', err.message);
     }
-});
+};
 
-// Test Endpoint
-app.get('/', (req, res) => {
-    res.json({ message: "Mahalle Yonetim Sistemi v2 API aktif." });
-});
-
+// --- 4. SUNUCUYU BAŞLAT VE GRACEFUL SHUTDOWN AYARI ---
 const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => {
-    console.log(`✅ Sunucu ${PORT} portunda calisiyor.`);
+
+// Sunucuyu bir değişkene atıyoruz ki sonra kapatabilelim
+const server = app.listen(PORT, async () => {
+    await connectDB();
+    console.log(`🚀 Sunucu ${PORT} portunda sorunsuz çalışıyor.`);
+});
+
+// CTRL + C (SIGINT) sinyalini yakala
+process.on('SIGINT', () => {
+    console.log('\n🛑 Sunucu kapatılıyor... (Kapatma sinyali alındı)');
+
+    // Önce sunucuyu yeni isteklere kapat
+    server.close(() => {
+        console.log('✅ HTTP sunucusu kapandı.');
+
+        // Sonra MongoDB bağlantısını güvenli şekilde kes
+        mongoose.connection.close(false, () => {
+            console.log('✅ MongoDB bağlantısı kesildi.');
+            // En son işlemi tamamen bitir
+            process.exit(0); 
+        });
+    });
 });
