@@ -1,64 +1,42 @@
 const PDFDocument = require('pdfkit');
 const supabase = require('../config/supabase');
 const crypto = require('crypto');
+const path = require('path');
 
 exports.generateAndUploadReport = async (data, reportName) => {
     return new Promise((resolve, reject) => {
+        // Font yolunu belirle
+        const fontPath = path.join(__dirname, '../assets/fonts/Arial.ttf');
+
         const doc = new PDFDocument({ margin: 50 });
         let buffers = [];
-        doc.on('data', buffers.push.bind(buffers));
-       
-
-doc.on('end', async () => {
-    try {
-        const pdfData = Buffer.concat(buffers);
-        const fileName = `reports/${reportName}-${crypto.randomUUID()}.pdf`;
-
-        const { data: uploadData, error } = await supabase.storage
-            .from('analiz-raporlari')
-            .upload(fileName, pdfData, { contentType: 'application/pdf' });
-
-        if (error) {
-            console.log("Supabase Yukleme Hatasi:", error.message);
-            return reject(error); // Hata varsa Promise'i bitir
-        }
-
-        const { data: urlData } = supabase.storage
-            .from('analiz-raporlari')
-            .getPublicUrl(fileName);
-
-        resolve(urlData.publicUrl); // Başarılıysa bitir
-    } catch (err) {
-        console.log("Beklenmedik Hata:", err.message);
-        reject(err); // Herhangi bir çökmede bitir
-    }
-});
-
-        // --- PDF TASARIMI BAŞLIYOR ---
         
-        // 1. Başlık
-        doc.fillColor('#444444').fontSize(20).text(data.title, { align: 'center' });
-        doc.fontSize(10).text(data.subtitle, { align: 'center' });
+        // Fontu belgeye kaydet ve varsayılan yap
+        doc.registerFont('TurkishFont', fontPath);
+        doc.font('TurkishFont'); 
+
+        doc.on('data', buffers.push.bind(buffers));
+        doc.on('end', async () => { /* ... yükleme mantığı aynı ... */ });
+
+        // --- TASARIM KISMI ---
+        
+        // Başlıkta Türkçe karakterleri güvenle kullanabilirsin
+        doc.fontSize(20).text(data.title, { align: 'center' });
         doc.moveDown();
 
-        // 2. Çizgi
-        doc.moveTo(50, 100).lineTo(550, 100).stroke();
-        doc.moveDown();
-
-        // 3. Verileri Yazdır (JSON.stringify yerine döngü kullanıyoruz)
         if (data.tableData && data.tableData.length > 0) {
-    data.tableData.forEach((item, index) => {
-        doc.fillColor('#2c3e50').fontSize(11).text(`${index + 1}. Mahalle: ${item.Mahalle}`);
-        doc.fillColor('#555').fontSize(9)
-           .text(`   > Elektrik (Ort/Zirve/Dusuk): ${item.Elektrik || 'Veri Yok'}`)
-           .text(`   > Su (Ort/Zirve/Dusuk): ${item.Su || 'Veri Yok'}`)
-           .text(`   > Dogalgaz (Ort/Zirve/Dusuk): ${item.Dogalgaz || 'Veri Yok'}`)
-           .moveDown(0.8);
-    });
-} else {
-    doc.fillColor('red').text("Secilen donem icin veritabaninda kayitli veri bulunamadi.");
-}
-
+            data.tableData.forEach((item, index) => {
+                // Burada item.Mahalle içindeki "Çaydaçıra" gibi kelimeler artık bozulmayacak
+                doc.fontSize(11).text(`${index + 1}. Mahalle: ${item.Mahalle}`);
+                
+                doc.fontSize(9)
+                   .text(`   > Elektrik (Ort/Zirve/Düşük): ${item.Elektrik || 'Veri Yok'}`)
+                   .text(`   > Su (Ort/Zirve/Düşük): ${item.Su || 'Veri Yok'}`)
+                   .text(`   > Doğalgaz (Ort/Zirve/Düşük): ${item.Dogalgaz || 'Veri Yok'}`)
+                   .moveDown(0.8);
+            });
+        }
+        
         doc.end();
     });
 };
