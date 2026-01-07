@@ -57,75 +57,46 @@ exports.listReports = async (req, res) => {
 };
 // Yardımcı fonksiyon: İstatistikleri hesapla (İstatistik endpoint'inden kopyaladık)
 async function getFullStats(month, year) {
-    const start = new Date(year, month - 1, 1);
-    const end = new Date(year, month, 0, 23, 59, 59);
+    const m = parseInt(month);
+    const y = parseInt(year);
+    const start = new Date(y, m - 1, 1);
+    const end = new Date(y, m, 0, 23, 59, 59);
 
-    return await Reading.aggregate([
-        { 
-            $match: { 
-                Tarih: { $gte: start, $lte: end } 
-            } 
-        },
+    console.log(`🔍 Sorgu Aralığı: ${start.toISOString()} - ${end.toISOString()}`);
+
+    const results = await Reading.aggregate([
+        // 1. Tarih Aralığı Filtreleme
+        { $match: { Tarih: { $gte: start, $lte: end } } },
+        
+        // 2. Mahalle bazlı grupla ve 3 kaynak için de ayrı ayrı hesapla
         {
             $group: {
-                _id: { Mahalle: "$Mahalle", Kaynak: "$Kaynak_Tipi" },
-                Ort: { $avg: "$Tuketim_Miktari" },
-                Zirve: { $max: "$Tuketim_Miktari" },
-                Dusuk: { $min: "$Tuketim_Miktari" }
-            }
-        },
-        {
-            $group: {
-                _id: "$_id.Mahalle",
-                hamKaynaklar: {
-                    $push: {
-                        k: "$_id.Kaynak",
-                        v: {
-                            $concat: [
-                                { $toString: { $round: ["$Ort", 2] } }, " / ",
-                                { $toString: { $round: ["$Zirve", 2] } }, " / ",
-                                { $toString: { $round: ["$Dusuk", 2] } }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        // --- KRİTİK GÜVENLİK AŞAMASI ---
-        {
-            $project: {
-                Mahalle: "$_id",
-                // k veya v değeri null olan bozuk verileri temizliyoruz
-                temizKaynaklar: {
-                    $filter: {
-                        input: "$hamKaynaklar",
-                        as: "item",
-                        cond: {
-                            $and: [
-                                { $ne: ["$$item.k", null] },
-                                { $ne: ["$$item.v", null] }
-                            ]
-                        }
-                    }
-                }
-            }
-        },
-        {
-            $project: {
-                Mahalle: 1,
-                // Sadece tamamen doğru yapıdaki diziyi nesneye çeviriyoruz
-                data: { $arrayToObject: "$temizKaynaklar" }
-            }
-        },
-        {
-            $project: {
-                Mahalle: 1,
-                Elektrik: { $ifNull: ["$data.Elektrik", "Veri Yok"] },
-                Su: { $ifNull: ["$data.Su", "Veri Yok"] },
-                Dogalgaz: { $ifNull: ["$data.Dogalgaz", "Veri Yok"] }
+                _id: "$Mahalle",
+                // Elektrik Analizi
+                e_avg: { $avg: "$Elektrik_Tuketim" },
+                e_max: { $max: "$Elektrik_Tuketim" },
+                e_min: { $min: "$Elektrik_Tuketim" },
+                // Su Analizi
+                s_avg: { $avg: "$Su_Tuketim" },
+                s_max: { $max: "$Su_Tuketim" },
+                s_min: { $min: "$Su_Tuketim" },
+                // Doğalgaz Analizi
+                d_avg: { $avg: "$Dogalgaz_Tuketim" },
+                d_max: { $max: "$Dogalgaz_Tuketim" },
+                d_min: { $min: "$Dogalgaz_Tuketim" }
             }
         }
     ]);
+
+    console.log(`📊 DB'den Bulunan Mahalle Sayısı: ${results.length}`);
+
+    // PDF için verileri formatla
+    return results.map(item => ({
+        Mahalle: item._id,
+        Elektrik: `${(item.e_avg || 0).toFixed(2)} / ${(item.e_max || 0).toFixed(2)} / ${(item.e_min || 0).toFixed(2)}`,
+        Su: `${(item.s_avg || 0).toFixed(2)} / ${(item.s_max || 0).toFixed(2)} / ${(item.s_min || 0).toFixed(2)}`,
+        Dogalgaz: `${(item.d_avg || 0).toFixed(2)} / ${(item.d_max || 0).toFixed(2)} / ${(item.d_min || 0).toFixed(2)}`
+    }));
 }
 
 exports.generateMonthlyStatsReport = async (req, res) => {
