@@ -7,7 +7,32 @@ exports.generateAndUploadReport = async (data, reportName) => {
         const doc = new PDFDocument({ margin: 50 });
         let buffers = [];
         doc.on('data', buffers.push.bind(buffers));
-        doc.on('end', async () => { /* ... yükleme mantığı aynı ... */ });
+       
+
+doc.on('end', async () => {
+    try {
+        const pdfData = Buffer.concat(buffers);
+        const fileName = `reports/${reportName}-${crypto.randomUUID()}.pdf`;
+
+        const { data: uploadData, error } = await supabase.storage
+            .from('analiz-raporlari')
+            .upload(fileName, pdfData, { contentType: 'application/pdf' });
+
+        if (error) {
+            console.log("Supabase Yukleme Hatasi:", error.message);
+            return reject(error); // Hata varsa Promise'i bitir
+        }
+
+        const { data: urlData } = supabase.storage
+            .from('analiz-raporlari')
+            .getPublicUrl(fileName);
+
+        resolve(urlData.publicUrl); // Başarılıysa bitir
+    } catch (err) {
+        console.log("Beklenmedik Hata:", err.message);
+        reject(err); // Herhangi bir çökmede bitir
+    }
+});
 
         // --- PDF TASARIMI BAŞLIYOR ---
         

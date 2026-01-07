@@ -58,16 +58,14 @@ exports.listReports = async (req, res) => {
 // Yardımcı fonksiyon: İstatistikleri hesapla (İstatistik endpoint'inden kopyaladık)
 async function getFullStats(month, year) {
     const start = new Date(year, month - 1, 1);
-    const end = new Date(year, month, 0, 23, 59, 59); // Ayın son günü
+    const end = new Date(year, month, 0, 23, 59, 59);
 
     return await Reading.aggregate([
-        // 1. Aşama: İlgili ay ve yıldaki verileri filtrele
         { 
             $match: { 
                 Tarih: { $gte: start, $lte: end } 
             } 
         },
-        // 2. Aşama: Mahalle ve Kaynak Tipine göre grupla, analizleri yap
         {
             $group: {
                 _id: { Mahalle: "$Mahalle", Kaynak: "$Kaynak_Tipi" },
@@ -76,40 +74,55 @@ async function getFullStats(month, year) {
                 Dusuk: { $min: "$Tuketim_Miktari" }
             }
         },
-        // 3. Aşama: Veriyi mahalle bazında birleştir (Pivot)
         {
             $group: {
                 _id: "$_id.Mahalle",
-                kaynaklar: {
+                hamKaynaklar: {
                     $push: {
                         k: "$_id.Kaynak",
                         v: {
-                            stats: {
-                                $concat: [
-                                    { $toString: { $round: ["$Ort", 2] } }, " / ",
-                                    { $toString: { $round: ["$Zirve", 2] } }, " / ",
-                                    { $toString: { $round: ["$Dusuk", 2] } }
-                                ]
-                            }
+                            $concat: [
+                                { $toString: { $round: ["$Ort", 2] } }, " / ",
+                                { $toString: { $round: ["$Zirve", 2] } }, " / ",
+                                { $toString: { $round: ["$Dusuk", 2] } }
+                            ]
                         }
                     }
                 }
             }
         },
-        // 4. Aşama: Çıktıyı PDF'e uygun formatla
+        // --- KRİTİK GÜVENLİK AŞAMASI ---
         {
             $project: {
-                _id: 0,
                 Mahalle: "$_id",
-                data: { $arrayToObject: "$kaynaklar" }
+                // k veya v değeri null olan bozuk verileri temizliyoruz
+                temizKaynaklar: {
+                    $filter: {
+                        input: "$hamKaynaklar",
+                        as: "item",
+                        cond: {
+                            $and: [
+                                { $ne: ["$$item.k", null] },
+                                { $ne: ["$$item.v", null] }
+                            ]
+                        }
+                    }
+                }
             }
         },
         {
             $project: {
                 Mahalle: 1,
-                Elektrik: "$data.Elektrik.stats",
-                Su: "$data.Su.stats",
-                Dogalgaz: "$data.Dogalgaz.stats"
+                // Sadece tamamen doğru yapıdaki diziyi nesneye çeviriyoruz
+                data: { $arrayToObject: "$temizKaynaklar" }
+            }
+        },
+        {
+            $project: {
+                Mahalle: 1,
+                Elektrik: { $ifNull: ["$data.Elektrik", "Veri Yok"] },
+                Su: { $ifNull: ["$data.Su", "Veri Yok"] },
+                Dogalgaz: { $ifNull: ["$data.Dogalgaz", "Veri Yok"] }
             }
         }
     ]);
@@ -118,20 +131,24 @@ async function getFullStats(month, year) {
 exports.generateMonthlyStatsReport = async (req, res) => {
     try {
         const { month, year } = req.query;
+        console.log("1. Veritabanı sorgusu başlatılıyor...");
         
-        // 1. Gerçek veriyi DB'den çek
         const stats = await getFullStats(month, year); 
+        console.log("2. Veriler başarıyla çekildi. Sayı:", stats.length);
 
-        // 2. PDF Servisine gerçek veriyi ve başlığı gönder
         const reportData = {
-            title: `${month}/${year} İstatistik Özeti Raporu`,
-            subtitle: "Mahalle Bazlı Tüketim ve Değişim Analizi",
-            tableData: stats // Gerçek dizi buraya gidiyor
+            title: `${month}/${year} Istatistik Ozeti Raporu`,
+            subtitle: "Mahalle Bazli Tuketim Analizi",
+            tableData: stats
         };
-        
+
+        console.log("3. PDF oluşturma ve yükleme başlatılıyor...");
         const publicUrl = await generateAndUploadReport(reportData, `Istatistik-${month}-${year}`);
-        res.status(201).json({ message: "Gerçek veriyle rapor oluşturuldu", url: publicUrl });
+        
+        console.log("4. İşlem başarıyla bitti! URL:", publicUrl);
+        res.status(201).json({ message: "Rapor hazir", url: publicUrl });
     } catch (error) {
+        console.error("KRİTİK HATA:", error);
         res.status(500).json({ error: error.message });
     }
 };
