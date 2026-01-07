@@ -84,3 +84,50 @@ PROFIL_SANAYI = {
         'dogalgaz_yaz_x':   [0, 24], 'dogalgaz_yaz_y':   [1.0, 1.0],
     }
 }
+
+PROFIL_KARMA = {
+    'tip': 'konut', 
+    'mevsimsel_carpani': {
+        # Apartmanlar (%60) gaz yakar, gecekondular (%40) soba yakar.
+        # Gaz kış çarpanı: (15.0 * 0.6) + (2.0 * 0.4) = ~9.8
+        'dogalgaz_kis': 9.8,
+        
+        # Elektrikte apartman baskın ama gecekondu düşürür.
+        # (1.4 * 0.6) + (1.1 * 0.4) = ~1.28
+        'elektrik_kis': 1.28,
+        
+        # Yazın klima etkisi biraz azalır (gecekondular serin olur)
+        'yaz_klima': 1.5, 
+        
+        # Su kullanımı artar çünkü gecekonduların bahçesi var
+        # (1.6 * 0.6) + (2.5 * 0.4) = ~1.96 (Ciddi bir su tüketimi)
+        'yaz_su': 1.96
+    },
+    'gun_tipi_carpan': {'hici': 0.98, 'hsonu': 1.1}, # Ortalaştırıldı
+    'saatlik_profiller': {
+        # --- ELEKTRİK (Karma) ---
+        # Akşam zirvesi hem 19:00 (geleneksel) hem 20:00 (modern) civarını kapsar.
+        'elektrik_hici_x':  [0,   6,   8,   12,  16,  18,  20,  22,  24],
+        'elektrik_hici_y':  [0.6, 0.4, 1.4, 1.0, 1.0, 1.4, 2.1, 1.8, 0.7],
+        
+        'elektrik_hsonu_x': [0,   8,   11,  15,  18,  20,  22,  24],
+        'elektrik_hsonu_y': [0.6, 0.5, 1.2, 1.3, 1.8, 2.1, 1.8, 0.7],
+
+        # --- SU (Karma) ---
+        # Hem sabah işe gidenler (modern) hem öğlen bahçe sulayanlar (geleneksel) etkili.
+        'su_hici_x':        [0,   5,   8,   10,  14,  17,  19,  21,  24],
+        'su_hici_y':        [0.4, 0.2, 1.8, 1.5, 1.8, 1.2, 1.5, 1.2, 0.3],
+        
+        'su_hsonu_x':       [0,   7,   10,  14,  17,  19,  21,  24],
+        'su_hsonu_y':       [0.4, 0.3, 1.8, 2.4, 1.5, 1.5, 1.2, 0.3],
+
+        # --- DOĞALGAZ (Karma) ---
+        # Kombililer sürekli yakar, sobalılar sadece yemekte yakar.
+        # Bu yüzden kış grafiği modern profile daha yakın ama genliği düşük.
+        'dogalgaz_kis_x':   [0,   6,   8,   12,  17,  19,  22,  24],
+        'dogalgaz_kis_y':   [0.7, 0.8, 1.0, 0.8, 1.0, 1.1, 1.0, 0.7], 
+        
+        'dogalgaz_yaz_x':   [0,   6,   12,  18,  20,  24],
+        'dogalgaz_yaz_y':   [0.3, 0.1, 0.8, 1.2, 0.9, 0.3],
+    }
+}
