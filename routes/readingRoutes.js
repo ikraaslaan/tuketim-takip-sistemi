@@ -11,4 +11,7 @@ router.get('/search', readingController.searchNeighborhoods);
 // Yönetici Paneli için 30 Günlük Ortalama: /api/readings/monthly-averages
 router.get('/monthly-averages', readingController.getMonthlyAverages);
 
+// Mahalle bazlı son veriler: /api/readings/latest/İstasyon
+router.get('/latest/:mahalleAdi', readingController.getLatestReadingsByNeighborhood);
+
 module.exports = router;
