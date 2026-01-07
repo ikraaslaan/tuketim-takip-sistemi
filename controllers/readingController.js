@@ -97,3 +97,92 @@ exports.getMonthlyAverages = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+// İstatistik Özeti Tablosu İçin Gelişmiş API
+exports.getStatsSummary = async (req, res) => {
+    try {
+        const { ay, yil } = req.query; // Örn: 12 ve 2025
+        const targetDate = new Date(yil, ay - 1, 1);
+        const prevMonthDate = new Date(yil, ay - 2, 1);
+
+        // 1. Mevcut Ay ve Geçen Ay verilerini paralel olarak çek
+        const [currentStats, prevStats] = await Promise.all([
+            calculateMonthlyStats(targetDate),
+            calculateMonthlyStats(prevMonthDate)
+        ]);
+
+        // 2. Verileri Mahalle bazında birleştir ve Değişim (Change) hesapla
+        const summaryTable = currentStats.map(curr => {
+            const prev = prevStats.find(p => p.Mahalle === curr.Mahalle) || {};
+            
+            return {
+                Mahalle: curr.Mahalle,
+                Elektrik: formatStats(curr.Elektrik),
+                Su: formatStats(curr.Su),
+                Dogalgaz: formatStats(curr.Dogalgaz),
+                Degisim: {
+                    E: calculateChange(curr.Elektrik?.Ort, prev.Elektrik?.Ort),
+                    S: calculateChange(curr.Su?.Ort, prev.Su?.Ort),
+                    D: calculateChange(curr.Dogalgaz?.Ort, prev.Dogalgaz?.Ort)
+                }
+            };
+        });
+
+        res.status(200).json(summaryTable);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// Yardımcı Fonksiyon: MongoDB Aggregation
+async function calculateMonthlyStats(date) {
+    const start = new Date(date.getFullYear(), date.getMonth(), 1);
+    const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+
+    const Reading = require('../models/Reading');
+    return await Reading.aggregate([
+        { $match: { Tarih: { $gte: start, $lte: end } } },
+        {
+            $group: {
+                _id: { Mahalle: "$Mahalle", Kaynak: "$Kaynak_Tipi" },
+                Ort: { $avg: "$Tuketim_Miktari" },
+                Zirve: { $max: "$Tuketim_Miktari" },
+                Dusuk: { $min: "$Tuketim_Miktari" }
+            }
+        },
+        {
+            $group: {
+                _id: "$_id.Mahalle",
+                veriler: {
+                    $push: {
+                        k: "$_id.Kaynak",
+                        v: { Ort: "$Ort", Zirve: "$Zirve", Dusuk: "$Dusuk" }
+                    }
+                }
+            }
+        },
+        {
+            $project: {
+                Mahalle: "$_id",
+                data: { $arrayToObject: "$veriler" }
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                Mahalle: 1,
+                Elektrik: "$data.Elektrik",
+                Su: "$data.Su",
+                Dogalgaz: "$data.Dogalgaz"
+            }
+        }
+    ]);
+}
+
+// Formatlama ve Değişim Hesaplama Araçları
+const formatStats = (s) => s ? `${s.Ort.toFixed(2)} / ${s.Zirve.toFixed(2)} / ${s.Dusuk.toFixed(2)}` : "0 / 0 / 0";
+const calculateChange = (curr, prev) => {
+    if (!curr || !prev) return "0.00%";
+    const change = ((curr - prev) / prev) * 100;
+    return (change > 0 ? "+" : "") + change.toFixed(2) + "%";
+};
