@@ -123,5 +123,12 @@
     "base_elektrik": 1800,
     "base_su": 250,
     "base_dogalgaz": 160
+  },
+  {
+    "mahalle_adi": "Kültürpark",
+    "profil_tipi": "park",
+    "base_elektrik": 3500,
+    "base_su": 80,
+    "base_dogalgaz": 30
   }
 ]
