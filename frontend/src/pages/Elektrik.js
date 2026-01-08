@@ -171,30 +171,18 @@ const Elektrik = ({ selectedNeighborhood }) => {
   };
 
   const chartData = useMemo(() => {
-    if (!timeSeriesData || timeSeriesData.length === 0) return [];
+    // Backend zaten son 7 gün verisi gönderiyor. Eğer veri çoksa (30'dan fazla) son 30'u alalım.
+    const sliced = timeSeriesData.length > 30 ? timeSeriesData.slice(-30) : timeSeriesData;
     
-    // Tarihleri formatla - "2025-12-27" -> "27 Aralık" veya "27/12"
-    const formatTarih = (tarihStr) => {
-      if (!tarihStr) return '';
-      try {
-        const [year, month, day] = tarihStr.split('-');
-        const monthNames = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 
-                            'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
-        const monthName = monthNames[parseInt(month) - 1];
-        return `${day} ${monthName}`;
-      } catch (e) {
-        return tarihStr;
-      }
-    };
-    
-    return timeSeriesData.map((item) => {
+    // Etiketleri düzeltelim ve gerçekçi dalgalanmalar ekleyelim
+    return sliced.map((item, index) => {
       const baseValue = item.value || 0;
       const fluctuatedValue = baseValue > 0 ? addFluctuations(baseValue) : baseValue;
       return {
         ...item,
-        value: fluctuatedValue,
-        tarih: formatTarih(item.tarih), // Formatlanmış tarih (örn: "27 Aralık")
-        tarihRaw: item.tarih, // Orijinal tarih (sıralama için)
+        value: fluctuatedValue, // Apply fluctuation
+        // Tarih değerini kullanıyoruz (Backend'den düzgün tarih formatı geliyor)
+        week: item.tarih || `Gün ${index + 1}`,
       };
     });
   }, [timeSeriesData]);
@@ -298,11 +286,11 @@ const Elektrik = ({ selectedNeighborhood }) => {
 
         {/* 5. Veri geldiyse (Grafik) */}
         {selectedNeighborhoodName && chartData.length > 0 && !dataLoading && (
-          <div className="bg-white rounded-3xl p-6 shadow-sm border border-emerald-100/50 chart-container">
-            <h3 className="text-base font-semibold mb-4 text-gray-800">{selectedNeighborhoodName} - Elektrik Tüketim Trendi (kWh)</h3>
-            <div className="w-full h-[350px]">
+          <div className="bg-white rounded-3xl p-8 shadow-sm border border-emerald-100/50 chart-container">
+            <h3 className="text-lg font-bold mb-6 text-gray-800">{selectedNeighborhoodName} Elektrik Tüketim Trendi (kWh)</h3>
+            <div className="w-full h-[320px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 20 }}>
+                <LineChart data={chartData}>
                   <defs>
                     <linearGradient id="colorElectricity" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#059669" stopOpacity={0.9} />
@@ -311,19 +299,17 @@ const Elektrik = ({ selectedNeighborhood }) => {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#d1fae5" vertical={false} />
                   <XAxis 
-                    dataKey="tarih"
+                    dataKey="tarih" // X ekseninde artık tarih gösteriyoruz
                     stroke="#6b7280" 
-                    tickMargin={10}
-                    tick={{ fontSize: 13, fill: '#374151' }}
-                    interval={chartData.length <= 7 ? 0 : Math.floor(chartData.length / 7)}
-                    height={50}
+                    tickMargin={8}
+                    tick={{ fontSize: 12 }}
+                    interval="preserveStartEnd"
                   />
                   <YAxis 
                     domain={['dataMin - 100', 'dataMax + 100']}
                     stroke="#6b7280" 
-                    tickMargin={10}
-                    width={70}
-                    tick={{ fontSize: 13, fill: '#374151' }}
+                    tickMargin={8} 
+                    tick={{ fontSize: 12 }} 
                   />
                   <Tooltip 
                     cursor={{ stroke: '#a7f3d0', strokeWidth: 1 }}
