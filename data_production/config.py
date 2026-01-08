@@ -131,3 +131,31 @@ PROFIL_KARMA = {
         'dogalgaz_yaz_y':   [0.3, 0.1, 0.8, 1.2, 0.9, 0.3],
     }
 }
+
+PROFIL_PARK = {
+    'tip': 'park', 
+    'mevsimsel_carpani': {
+        'elektrik_kis': 2.2,
+        'yaz_klima': 1.5,
+        'yaz_su': 12.0,
+        'kis_su': 6.0,
+        'dogalgaz_kis': 1.0,
+    },
+    'gun_tipi_carpan': { 'hici': 1.4, 'hsonu': 1.8 },
+    'saatlik_profiller': {
+        'elektrik_hici_x':   [0,   6,   7,   17,   18,   23,   24],
+        'elektrik_hici_y':  [0.8, 1, 1.5, 2, 2.5, 2.5, 2.0], 
+        'elektrik_hsonu_x': [0,   6,   8,   17,   18,   24],
+        'elektrik_hsonu_y': [0.8, 1.2, 2, 2.75, 3.0, 1],
+        'su_yaz_hici_x':    [0,   2,   3,   5,   6,   9,   11,   13,   15,   17,   19, 21, 24],
+        'su_yaz_hici_y':    [0.1, 1.5, 2.0, 2.0, 1.5, 0.4, 0.8, 1.2, 0.9, 0.8, 0.6, 0.4, 0.1], 
+        'su_yaz_hsonu_x':   [0,   2,   3,   5,   6,   10, 13, 16, 19, 22, 24],
+        'su_yaz_hsonu_y':   [0.2, 1.5, 2.0, 2.0, 1.5, 1.0, 1.5, 1.2, 1.0, 0.8, 0.2],
+        'su_kis_hici_x':    [0, 7, 9, 11, 13, 15, 17, 19, 21, 24],
+        'su_kis_hici_y':    [1, 1.2, 1.2, 1.5, 1.5, 1.5, 1.6, 1.7, 1.5, 1.2],
+        'su_kis_hsonu_x':   [0, 7, 10, 13, 16, 19, 22, 24],
+        'su_kis_hsonu_y':   [1, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, .15],
+        'dogalgaz_kis_x':   [0, 24], 'dogalgaz_kis_y':   [1.5, 1.5],
+        'dogalgaz_yaz_x':   [0, 24], 'dogalgaz_yaz_y':   [1.0, 1.0],
+    }
+}
