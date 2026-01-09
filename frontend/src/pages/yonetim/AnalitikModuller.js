@@ -9,7 +9,6 @@ const AnalitikModuller = () => {
   const [statisticalSummary, setStatisticalSummary] = useState(null);
   const [timeSeriesAnalysis, setTimeSeriesAnalysis] = useState(null);
   const [generatingReport, setGeneratingReport] = useState(false);
-  
   // Smart Date Filter: Default to previous month (not current month)
   const today = new Date();
   const currentMonth = today.getMonth() + 1; // 1-12
@@ -42,6 +41,7 @@ const AnalitikModuller = () => {
   const [reportProgress, setReportProgress] = useState("");
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+
   // Fetch neighborhoods list for filter dropdown
   useEffect(() => {
     const fetchNeighborhoods = async () => {
@@ -160,6 +160,7 @@ const AnalitikModuller = () => {
       setLoading(false);
     }
   };
+
   // Helper function to trigger browser download
   const downloadPDF = (url, filename) => {
     try {
@@ -325,6 +326,7 @@ const AnalitikModuller = () => {
       alert("Rapor silinirken hata oluştu: " + (error.response?.data?.message || error.message || "Bilinmeyen hata"));
     }
   };
+
   return (
     <div className="pt-24 px-8 min-h-screen bg-[#DDEEE3]">
       {/* SUCCESS TOAST NOTIFICATION */}
@@ -652,3 +654,262 @@ const AnalitikModuller = () => {
             )}
           </div>
         )}
+
+        {/* İSTATİSTİK ÖZETİ SAYFASI */}
+        {activePage === "istatistik" && (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
+                <TrendingUp className="text-emerald-600" />
+                İstatistik Özeti
+              </h2>
+              <div className="flex gap-2">
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                >
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                    <option key={m} value={m}>
+                      {m}. Ay
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                >
+                  {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="text-center py-10">
+                <Loader2 className="animate-spin mx-auto mb-4 text-emerald-600" size={32} />
+                <p className="text-gray-600">Veriler yükleniyor...</p>
+              </div>
+            ) : !statisticalSummary || statisticalSummary.length === 0 ? (
+              <div className="text-center py-10 text-gray-500">
+                <p>Bu dönem için veri bulunamadı.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-emerald-50 text-gray-700">
+                      <th className="p-4 font-semibold border-b">Mahalle</th>
+                      <th className="p-4 font-semibold border-b">Elektrik (Ort/Zirve/Düşük)</th>
+                      <th className="p-4 font-semibold border-b">Su (Ort/Zirve/Düşük)</th>
+                      <th className="p-4 font-semibold border-b">Doğalgaz (Ort/Zirve/Düşük)</th>
+                      <th className="p-4 font-semibold border-b">Değişim</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {statisticalSummary.map((item, index) => (
+                      <tr key={index} className="border-b hover:bg-gray-50">
+                        <td className="p-4 font-medium">{item.mahalle}</td>
+                        <td className="p-4 text-sm">
+                          {item.elektrik ? (
+                            <>
+                              {item.elektrik.average.toFixed(2)} / {item.elektrik.peak.toFixed(2)} /{" "}
+                              {item.elektrik.lowest.toFixed(2)} kWh
+                            </>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
+                        <td className="p-4 text-sm">
+                          {item.su ? (
+                            <>
+                              {item.su.average.toFixed(2)} / {item.su.peak.toFixed(2)} /{" "}
+                              {item.su.lowest.toFixed(2)} m³
+                            </>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
+                        <td className="p-4 text-sm">
+                          {item.dogalgaz ? (
+                            <>
+                              {item.dogalgaz.average.toFixed(2)} / {item.dogalgaz.peak.toFixed(2)} /{" "}
+                              {item.dogalgaz.lowest.toFixed(2)} m³
+                            </>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
+                        <td className="p-4 text-sm">
+                          {item.elektrik?.change && (
+                            <span
+                              className={`px-2 py-1 rounded ${
+                                item.elektrik.change.increased
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-green-100 text-green-700"
+                              }`}
+                            >
+                              E: {item.elektrik.change.percentage}%
+                            </span>
+                          )}
+                          {item.su?.change && (
+                            <span
+                              className={`px-2 py-1 rounded ml-1 ${
+                                item.su.change.increased
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-green-100 text-green-700"
+                              }`}
+                            >
+                              S: {item.su.change.percentage}%
+                            </span>
+                          )}
+                          {item.dogalgaz?.change && (
+                            <span
+                              className={`px-2 py-1 rounded ml-1 ${
+                                item.dogalgaz.change.increased
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-green-100 text-green-700"
+                              }`}
+                            >
+                              D: {item.dogalgaz.change.percentage}%
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ZAMAN SERİSİ ANALİZİ SAYFASI */}
+        {activePage === "zaman" && (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
+                <BarChart3 className="text-emerald-600" />
+                Zaman Serisi Analizi
+              </h2>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              >
+                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {loading ? (
+              <div className="text-center py-10">
+                <Loader2 className="animate-spin mx-auto mb-4 text-emerald-600" size={32} />
+                <p className="text-gray-600">Veriler yükleniyor...</p>
+              </div>
+            ) : !timeSeriesAnalysis ? (
+              <div className="text-center py-10 text-gray-500">
+                <p>Bu dönem için veri bulunamadı.</p>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                {/* Mevsimsel Tüketim */}
+                <div>
+                  <h3 className="text-xl font-bold text-gray-800 mb-4">Mevsimsel Tüketim</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {Object.values(timeSeriesAnalysis.seasonalConsumption || {}).map(
+                      (season, index) => (
+                        <div
+                          key={index}
+                          className="border border-gray-200 rounded-lg p-4 bg-emerald-50"
+                        >
+                          <h4 className="font-semibold text-gray-800 mb-3">{season.name}</h4>
+                          <div className="space-y-2 text-sm">
+                            <p>
+                              <span className="font-medium">Elektrik:</span>{" "}
+                              {season.elektrik.average.toFixed(2)} kWh
+                            </p>
+                            <p>
+                              <span className="font-medium">Su:</span> {season.su.average.toFixed(2)} m³
+                            </p>
+                            <p>
+                              <span className="font-medium">Doğalgaz:</span>{" "}
+                              {season.dogalgaz.average.toFixed(2)} m³
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+
+                {/* Mevsimsel Arızalar */}
+                <div>
+                  <h3 className="text-xl font-bold text-gray-800 mb-4">Mevsimsel Arıza Frekansı</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {Object.values(timeSeriesAnalysis.seasonalIncidents || {}).map(
+                      (season, index) => (
+                        <div
+                          key={index}
+                          className="border border-gray-200 rounded-lg p-4 bg-red-50"
+                        >
+                          <h4 className="font-semibold text-gray-800 mb-3">{season.name}</h4>
+                          <p className="text-lg font-bold text-red-600 mb-2">
+                            Toplam: {season.count} arıza
+                          </p>
+                          <div className="space-y-1 text-sm">
+                            <p>Elektrik: {season.byResource.Elektrik}</p>
+                            <p>Su: {season.byResource.Su}</p>
+                            <p>Doğalgaz: {season.byResource.Dogalgaz}</p>
+                          </div>
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+
+                {/* Korelasyon Analizi */}
+                {timeSeriesAnalysis.correlations && timeSeriesAnalysis.correlations.length > 0 && (
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-4">Korelasyon Analizi</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {timeSeriesAnalysis.correlations.map((corr, index) => (
+                        <div
+                          key={index}
+                          className="border border-gray-200 rounded-lg p-4 bg-blue-50"
+                        >
+                          <h4 className="font-semibold text-gray-800 mb-3 uppercase">
+                            {corr.resource}
+                          </h4>
+                          <div className="space-y-2 text-sm">
+                            <p>
+                              <span className="font-medium">Zirve Mevsim:</span> {corr.peakSeason} (
+                              {corr.peakValue.toFixed(2)})
+                            </p>
+                            <p>
+                              <span className="font-medium">En Düşük Mevsim:</span> {corr.lowestSeason} (
+                              {corr.lowestValue.toFixed(2)})
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default AnalitikModuller;
