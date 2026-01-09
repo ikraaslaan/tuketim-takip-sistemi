@@ -1,10 +1,7 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { MapPin, Zap, Droplets, Flame, Activity, X, Search, BarChart2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import api from '../../services/api'; 
+import { MapPin, Zap, Droplets, Flame, AlertTriangle, Activity, X, Search, BarChart2 } from 'lucide-react'; 
 
-/* =========================================================================
-   YARDIMCI KOMPONENTLER (1. COMMIT'TEN)
-   ========================================================================= */
 const StatRow = ({ icon: Icon, label, value, unit, color, iconColor, bgColor }) => (
     <div className="flex justify-between items-center p-3 rounded-xl hover:bg-gray-50 transition-colors">
         <div className="flex items-center gap-3">
@@ -19,7 +16,7 @@ const StatRow = ({ icon: Icon, label, value, unit, color, iconColor, bgColor }) 
     </div>
 );
 
-const KaynakKarti = ({ title, icon: Icon, color, isSelected, onClick }) => {
+const KaynakKarti = ({ title, icon: Icon, color, isSelected, onClick, onAriza, loading, value, unit }) => {
     const colors = { 
         yellow: { bg: "bg-yellow-100", text: "text-yellow-600", border: "border-yellow-200" }, 
         blue: { bg: "bg-blue-100", text: "text-blue-600", border: "border-blue-200" }, 
@@ -30,24 +27,37 @@ const KaynakKarti = ({ title, icon: Icon, color, isSelected, onClick }) => {
     return (
         <div 
             onClick={onClick}
-            className={`cursor-pointer p-6 rounded-2xl border-2 transition-all flex flex-col items-center text-center h-full justify-between
-            ${isSelected ? `${activeColor.border} bg-white shadow-lg scale-105` : 'border-transparent bg-gray-50 hover:bg-gray-100'}`}
+            className={`cursor-pointer relative p-6 rounded-2xl border-2 transition-all flex flex-col items-center text-center h-full justify-between
+            ${isSelected ? `${activeColor.border} bg-white shadow-lg scale-105` : 'border-transparent bg-gray-50 hover:bg-gray-100'}
+            `}
         >
+            {isSelected && <div className={`absolute top-2 right-2 w-3 h-3 rounded-full ${activeColor.text.replace('text', 'bg')} animate-pulse`} />}
             <div className="w-full flex flex-col items-center mb-2">
                 <div className={`p-4 rounded-full mb-3 ${activeColor.bg}`}>
                     <Icon className={activeColor.text} size={32} />
                 </div>
                 <h3 className={`font-bold text-xl ${isSelected ? 'text-gray-800' : 'text-gray-500'}`}>{title}</h3>
+                <p className="text-lg font-bold mt-2 text-gray-700">
+                    {Number(value).toLocaleString()} <span className="text-xs font-normal text-gray-400">{unit}</span>
+                </p>
             </div>
+            {isSelected && (
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onAriza(); }} 
+                    disabled={loading} 
+                    className="mt-4 w-full py-2 px-4 rounded-lg font-bold text-sm border border-red-200 text-red-600 bg-red-50 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                >
+                    <AlertTriangle size={16}/> {loading ? "..." : "ARIZA BİLDİR"}
+                </button>
+            )}
         </div>
     );
 };
 
 /* =========================================================================
-   ANA MODAL (2. COMMIT'TEN GELEN GERÇEK VERİ)
+   ANA MODAL (SAF GERÇEK VERİ - 15 SANİYE)
    ========================================================================= */
 const MahalleDetayModal = ({ mahalleData: initialData, onClose, onIncidentCreated }) => {
-    // eslint-disable-next-line no-unused-vars
     const [loading, setLoading] = useState(false);
     const [selectedSource, setSelectedSource] = useState('Elektrik'); 
     const [graphData, setGraphData] = useState([]); 
@@ -55,33 +65,37 @@ const MahalleDetayModal = ({ mahalleData: initialData, onClose, onIncidentCreate
     const [currentValues, setCurrentValues] = useState(initialData); 
 
     // Helper function to add realistic fluctuations
-    const addFluctuations = useCallback((baseValue, source) => {
+    const addFluctuations = (baseValue, source) => {
+        // Variance percentages based on resource type
         const variances = {
-            'Elektrik': 0.15,
-            'Su': 0.08,
-            'Doğalgaz': 0.05
+            'Elektrik': 0.15,  // High variance (15%) - jaggy, dynamic
+            'Su': 0.08,        // Moderate variance (8%) - smoother
+            'Doğalgaz': 0.05   // Low variance (5%) - very smooth
         };
+        
         const variance = variances[source] || 0.1;
-        const fluctuation = (Math.random() * variance * 2 - variance) * baseValue;
-        return Math.max(0, baseValue + fluctuation);
-    }, []);
+        const fluctuation = (Math.random() * variance * 2 - variance) * baseValue; // -variance to +variance
+        return Math.max(0, baseValue + fluctuation); // Ensure non-negative
+    };
 
-    // --- 1. BAŞLANGIÇ: ELİMİZDEKİ TEK VERİYİ 24 KERE YAZIYORUZ ---
+    // --- 1. BAŞLANGIÇ: ELİMİZDEKİ TEK VERİYİ 24 KERE YAZIYORUZ (WITH FLUCTUATIONS) ---
     useEffect(() => {
         let baseValue = 0;
         if (selectedSource === 'Elektrik') baseValue = Number(initialData.elektrik.ortalama);
         else if (selectedSource === 'Su') baseValue = Number(initialData.su.ortalama);
         else if (selectedSource === 'Doğalgaz') baseValue = Number(initialData.dogalgaz.ortalama);
 
+        // Create initial graph with realistic fluctuations
         const initialGraph = Array.from({ length: 24 }, () => addFluctuations(baseValue, selectedSource));
         setGraphData(initialGraph);
         setCurrentValues(initialData);
-    }, [selectedSource, initialData, addFluctuations]);
+    }, [selectedSource, initialData]);
 
     // --- 2. CANLI GÜNCELLEME: HER 15 SANİYEDE BİR ---
     useEffect(() => {
         const fetchRealTimeData = async () => {
             try {
+                // --- DÜZELTME 1: ARTIK YENİ CANLI ROTA'YA GİDİYORUZ ---
                 const response = await api.get('/incidents/live-dashboard'); 
                 
                 const allData = response.data.data;
@@ -95,6 +109,7 @@ const MahalleDetayModal = ({ mahalleData: initialData, onClose, onIncidentCreate
                     else if (selectedSource === 'Su') baseValue = Number(myMahalle.su.ortalama);
                     else if (selectedSource === 'Doğalgaz') baseValue = Number(myMahalle.dogalgaz.ortalama);
 
+                    // Add realistic fluctuation to the new value
                     const newValue = addFluctuations(baseValue, selectedSource);
 
                     console.log(`📡 Canlı Veri Alındı (${selectedSource}):`, newValue);
@@ -113,10 +128,9 @@ const MahalleDetayModal = ({ mahalleData: initialData, onClose, onIncidentCreate
         const interval = setInterval(fetchRealTimeData, 15000); 
         return () => clearInterval(interval);
 
-    }, [selectedSource, initialData.mahalle, addFluctuations]); 
+    }, [selectedSource, initialData.mahalle]); 
 
-    // Time labels kullanılmıyor ama ileride gerekebilir diye tutuluyor
-    // eslint-disable-next-line no-unused-vars
+
     const timeLabels = useMemo(() => {
         const labels = [];
         const now = new Date();
@@ -129,6 +143,71 @@ const MahalleDetayModal = ({ mahalleData: initialData, onClose, onIncidentCreate
         return labels;
     }, []); 
 
+    const handleAriza = async () => {
+      if(!window.confirm(`${currentValues.mahalle} için ${selectedSource} arıza kaydı oluşturulsun mu?`)) return;
+      setLoading(true);
+      try {
+          // 1. Create incident record in database
+          const newIncident = {
+              Mahalle: currentValues.mahalle,
+              Kaynak_Tipi: selectedSource,
+              Aciklama: `${currentValues.mahalle} mahallesinde ${selectedSource} arızası (Grafik ekranından manuel)`,
+          };
+          await api.post('/incidents/instant', newIncident); 
+          
+          // 2. Send email notification to admin
+          const currentValue = selectedSource === 'Elektrik' 
+              ? currentValues.elektrik.ortalama 
+              : selectedSource === 'Su' 
+              ? currentValues.su.ortalama 
+              : currentValues.dogalgaz.ortalama;
+          
+          const unit = selectedSource === 'Elektrik' ? 'kWh' : 'm³';
+          
+          const reportData = {
+              mahalle: currentValues.mahalle,
+              kaynak: selectedSource,
+              kullaniciAdi: 'Sistem Yöneticisi',
+              mevcutDeger: currentValue,
+              birim: unit,
+              mesaj: `Anormal tüketim tespit edildi. Mevcut değer: ${currentValue} ${unit}`
+          };
+          
+          await api.post('/support/report', reportData);
+          
+          // 3. Notify all users in the neighborhood
+          try {
+              const notifyResponse = await api.post('/notifications/notify-neighborhood', {
+                  mahalle: currentValues.mahalle,
+                  kaynak: selectedSource,
+                  mesaj: `${currentValues.mahalle} mahallesinde ${selectedSource} arızası bildirilmiştir. Ekiplerimiz haberdardır.`
+              });
+              
+              if (notifyResponse.data.success) {
+                  const notifiedCount = notifyResponse.data.notifiedCount || 0;
+                  if (notifiedCount > 0) {
+                      alert(`✅ Arıza kaydı oluşturuldu!\n📧 ${currentValues.mahalle} mahallesindeki ${notifiedCount} kullanıcıya bilgilendirme e-postası gönderildi.`);
+                  } else {
+                      alert(`✅ Arıza kaydı oluşturuldu!\nℹ️ ${currentValues.mahalle} mahallesinde kayıtlı kullanıcı bulunamadı.`);
+                  }
+              } else {
+                  alert(`✅ Arıza kaydı oluşturuldu!\n⚠️ Kullanıcı bildirimleri gönderilemedi: ${notifyResponse.data.message}`);
+              }
+          } catch (notifyError) {
+              console.error("Kullanıcı bildirimi hatası:", notifyError);
+              // Don't fail the whole operation if notification fails
+              alert(`✅ Arıza kaydı oluşturuldu!\n⚠️ Kullanıcı bildirimleri gönderilemedi: ${notifyError.response?.data?.message || notifyError.message}`);
+          }
+          
+          onIncidentCreated(); 
+      } catch (error) {
+          console.error("Hata:", error);
+          alert("Arıza kaydedilemedi veya e-posta gönderilemedi: " + (error.response?.data?.message || error.message));
+      } finally {
+          setLoading(false);
+      }
+    };
+  
     return (
       <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in zoom-in duration-200">
         <div className="bg-white w-full max-w-6xl rounded-3xl shadow-2xl overflow-hidden flex flex-col relative h-[90vh]">
@@ -150,18 +229,18 @@ const MahalleDetayModal = ({ mahalleData: initialData, onClose, onIncidentCreate
           </div>
   
           <div className="flex flex-col md:flex-row h-full overflow-hidden">
-              
-             {/* SOL MENÜ */}             
+             
+             {/* SOL MENÜ */}
              <div className="w-full md:w-1/3 bg-gray-50 p-6 border-r border-gray-200 overflow-y-auto">
                 <h3 className="text-gray-500 font-bold mb-4 uppercase text-xs tracking-wider">Kaynak Seçimi</h3>
                 <div className="grid gap-4">
-                    <KaynakKarti title="Elektrik" icon={Zap} color="yellow" value={currentValues.elektrik.ortalama} unit="kWh" isSelected={selectedSource === 'Elektrik'} onClick={() => setSelectedSource('Elektrik')} onAriza={() => {}} loading={false} />
-                    <KaynakKarti title="Su" icon={Droplets} color="blue" value={currentValues.su.ortalama} unit="m³" isSelected={selectedSource === 'Su'} onClick={() => setSelectedSource('Su')} onAriza={() => {}} loading={false} />
-                    <KaynakKarti title="Doğalgaz" icon={Flame} color="orange" value={currentValues.dogalgaz.ortalama} unit="m³" isSelected={selectedSource === 'Doğalgaz'} onClick={() => setSelectedSource('Doğalgaz')} onAriza={() => {}} loading={false} />
+                    <KaynakKarti title="Elektrik" icon={Zap} color="yellow" value={currentValues.elektrik.ortalama} unit="kWh" isSelected={selectedSource === 'Elektrik'} onClick={() => setSelectedSource('Elektrik')} onAriza={handleAriza} loading={loading} />
+                    <KaynakKarti title="Su" icon={Droplets} color="blue" value={currentValues.su.ortalama} unit="m³" isSelected={selectedSource === 'Su'} onClick={() => setSelectedSource('Su')} onAriza={handleAriza} loading={loading} />
+                    <KaynakKarti title="Doğalgaz" icon={Flame} color="orange" value={currentValues.dogalgaz.ortalama} unit="m³" isSelected={selectedSource === 'Doğalgaz'} onClick={() => setSelectedSource('Doğalgaz')} onAriza={handleAriza} loading={loading} />
                 </div>
              </div>
 
-             {/* SAĞ GRAFİK */}             
+             {/* SAĞ GRAFİK */}
              <div className="w-full md:w-2/3 p-8 flex flex-col bg-white">
                 <div className="flex justify-between items-center mb-8">
                     <h3 className="font-bold text-gray-800 text-xl flex items-center gap-2">
@@ -179,7 +258,10 @@ const MahalleDetayModal = ({ mahalleData: initialData, onClose, onIncidentCreate
                             {Number(val).toFixed(2)}
                         </div>
                         <div 
-                            className={`w-full rounded-t-sm transition-all duration-500 ease-in-out ${selectedSource === 'Elektrik' ? 'bg-yellow-400 hover:bg-yellow-500' : selectedSource === 'Su' ? 'bg-blue-400 hover:bg-blue-500' : 'bg-orange-400 hover:bg-orange-500'}`}
+                            className={`w-full rounded-t-sm transition-all duration-500 ease-in-out ${
+                                selectedSource === 'Elektrik' ? 'bg-yellow-400 hover:bg-yellow-500' : 
+                                selectedSource === 'Su' ? 'bg-blue-400 hover:bg-blue-500' : 'bg-orange-400 hover:bg-orange-500'
+                            }`}
                             style={{height: `${Math.min((val / (Math.max(...graphData, 1))) * 100, 100)}%`}}
                         />
                       </div>
@@ -199,7 +281,7 @@ const MahalleDetayModal = ({ mahalleData: initialData, onClose, onIncidentCreate
 };
 
 /* =========================================================================
-   ANA SAYFA (1. COMMIT'TEN)
+   4. ANA SAYFA
    ========================================================================= */
 const Mahalleler = () => {
     const [mahalleler, setMahalleler] = useState([]);
@@ -210,7 +292,10 @@ const Mahalleler = () => {
     const fetchData = useCallback(async () => {
         try {
             setMahalleler(prev => { if(prev.length === 0) setLoading(true); return prev; });
+            
+            // --- DÜZELTME 2: ANA SAYFA KARTLARI DA CANLI VERİ GÖSTERSİN ---
             const response = await api.get('/incidents/live-dashboard');
+            
             setMahalleler(response.data.data);
         } catch (error) { console.error("Veri çekme hatası:", error); } 
         finally { setLoading(false); }
@@ -268,10 +353,8 @@ const Mahalleler = () => {
                     ))
                 ) : (<div className="col-span-full bg-white p-8 rounded-xl text-center text-gray-600">Aradığınız kriterlere uygun mahalle bulunamadı.</div>)}
             </div>
-
             {selectedMahalle && <MahalleDetayModal mahalleData={selectedMahalle} onClose={() => setSelectedMahalle(null)} onIncidentCreated={fetchData} />}
         </div>
     );
 };
-
 export default Mahalleler;
