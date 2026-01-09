@@ -325,3 +325,330 @@ const AnalitikModuller = () => {
       alert("Rapor silinirken hata oluştu: " + (error.response?.data?.message || error.message || "Bilinmeyen hata"));
     }
   };
+  return (
+    <div className="pt-24 px-8 min-h-screen bg-[#DDEEE3]">
+      {/* SUCCESS TOAST NOTIFICATION */}
+      {showSuccessToast && (
+        <div className="fixed top-20 right-8 z-50 animate-slide-in">
+          <div className="bg-emerald-600 text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px]">
+            <div className="flex-1">
+              <p className="font-semibold">{successMessage}</p>
+            </div>
+            <button
+              onClick={() => setShowSuccessToast(false)}
+              className="text-white hover:text-emerald-100 transition"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* ANALİTİK MODÜLLER ÜST MENÜ */}
+      <div className="flex gap-4 mb-8 flex-wrap">
+        <button
+          onClick={() => setActivePage("belgeler")}
+          className={`px-6 py-2 rounded-full font-bold transition-all
+            ${
+              activePage === "belgeler"
+                ? "bg-emerald-600 text-white shadow"
+                : "bg-white text-emerald-700 hover:bg-emerald-100"
+            }`}
+        >
+          <FileText className="inline-block mr-2" size={18} />
+          Belgeler
+        </button>
+
+        <button
+          onClick={() => setActivePage("istatistik")}
+          className={`px-6 py-2 rounded-full font-bold transition-all
+            ${
+              activePage === "istatistik"
+                ? "bg-emerald-600 text-white shadow"
+                : "bg-white text-emerald-700 hover:bg-emerald-100"
+            }`}
+        >
+          <TrendingUp className="inline-block mr-2" size={18} />
+          İstatistik Özeti
+        </button>
+
+        <button
+          onClick={() => setActivePage("zaman")}
+          className={`px-6 py-2 rounded-full font-bold transition-all
+            ${
+              activePage === "zaman"
+                ? "bg-emerald-600 text-white shadow"
+                : "bg-white text-emerald-700 hover:bg-emerald-100"
+            }`}
+        >
+          <BarChart3 className="inline-block mr-2" size={18} />
+          Zaman Serisi Analizi
+        </button>
+      </div>
+
+      {/* SAYFA İÇERİĞİ */}
+      <div className="bg-white rounded-2xl p-10 shadow-lg">
+        {/* BELGELER SAYFASI */}
+        {activePage === "belgeler" && (
+          <div>
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-3 mb-4">
+                <FileText className="text-emerald-600" />
+                PDF Belgeler
+              </h2>
+              
+              {/* FILTER HEADER - Clean UI for Report Generation */}
+              <div className="bg-emerald-50 rounded-lg p-4 mb-4 border border-emerald-200">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Rapor Filtreleri</h3>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  {/* Neighborhood Filter */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Mahalle</label>
+                    <select
+                      value={selectedNeighborhood}
+                      onChange={(e) => setSelectedNeighborhood(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      disabled={neighborhoods.length === 0 || generatingReport}
+                      required
+                    >
+                      <option value="">-- Mahalle Seçin (Zorunlu) --</option>
+                      {neighborhoods.map((neighborhood) => (
+                        <option key={neighborhood} value={neighborhood}>
+                          {neighborhood}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Resource Filter */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Kaynak</label>
+                    <select
+                      value={selectedResource}
+                      onChange={(e) => setSelectedResource(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      disabled={generatingReport}
+                    >
+                      <option value="all">Tüm Kaynaklar</option>
+                      <option value="elektrik">Elektrik</option>
+                      <option value="su">Su</option>
+                      <option value="dogalgaz">Doğalgaz</option>
+                    </select>
+                  </div>
+
+                  {/* Period Filter - Month */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Ay</label>
+                    <select
+                      value={selectedMonth}
+                      onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      disabled={generatingReport}
+                    >
+                      {(() => {
+                        // Dynamic Month Filter: Hide current month and future months
+                        const today = new Date();
+                        const currentMonthNum = today.getMonth() + 1; // 1-12
+                        const currentYearNum = today.getFullYear();
+                        
+                        // If selected year is current year: only show months less than current month
+                        // If selected year is past: show all 12 months
+                        const maxMonth = selectedYear === currentYearNum 
+                          ? currentMonthNum - 1  // Hide current month and future
+                          : 12; // Show all months for past years
+                        
+                        return Array.from({ length: maxMonth }, (_, i) => i + 1).map((m) => (
+                          <option key={m} value={m}>
+                            {m}. Ay
+                          </option>
+                        ));
+                      })()}
+                    </select>
+                  </div>
+
+                  {/* Period Filter - Year */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Yıl</label>
+                    <select
+                      value={selectedYear}
+                      onChange={(e) => {
+                        const newYear = parseInt(e.target.value);
+                        setSelectedYear(newYear);
+                        
+                        // Validate month when year changes
+                        const today = new Date();
+                        const currentMonthNum = today.getMonth() + 1;
+                        const currentYearNum = today.getFullYear();
+                        
+                        // If new year is current year and selected month is >= current month, reset to previous month
+                        if (newYear === currentYearNum && selectedMonth >= currentMonthNum) {
+                          const prevMonth = currentMonthNum === 1 ? 12 : currentMonthNum - 1;
+                          setSelectedMonth(prevMonth);
+                        }
+                      }}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      disabled={generatingReport}
+                    >
+                      {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+                        <option key={y} value={y}>
+                          {y}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Generate Button with Progress Indicator */}
+                <div className="mt-4 flex items-center justify-between">
+                  <button
+                    onClick={handleGenerateReport}
+                    disabled={generatingReport || !selectedNeighborhood || selectedNeighborhood === ""}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-semibold transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {generatingReport ? (
+                      <>
+                        <Loader2 className="animate-spin" size={18} />
+                        İşleniyor...
+                      </>
+                    ) : (
+                      <>
+                        <Calendar size={18} />
+                        Rapor Oluştur
+                      </>
+                    )}
+                  </button>
+                  
+                  {reportProgress && (
+                    <div className="text-sm text-emerald-700 font-medium">
+                      {reportProgress}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="text-center py-10">
+                <Loader2 className="animate-spin mx-auto mb-4 text-emerald-600" size={32} />
+                <p className="text-gray-600">Belgeler yükleniyor...</p>
+              </div>
+            ) : documents.length === 0 ? (
+              <div className="text-center py-10 text-gray-500">
+                <FileText size={48} className="mx-auto mb-4 opacity-50" />
+                <p>Henüz belge bulunmuyor.</p>
+                <p className="text-sm mt-2">Yukarıdaki butona tıklayarak yeni rapor oluşturabilirsiniz.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {documents.map((doc, index) => (
+                  <div
+                    key={index}
+                    className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-semibold text-gray-800">{doc.neighborhood_name}</h3>
+                          {/* Resource Type Badge */}
+                          {(() => {
+                            const resourceType = doc.resource || doc.resourceType || 'all';
+                            if (resourceType === 'elektrik') {
+                              return (
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold bg-yellow-100 text-yellow-800">
+                                  ⚡ Elektrik
+                                </span>
+                              );
+                            } else if (resourceType === 'su') {
+                              return (
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold bg-blue-100 text-blue-800">
+                                  💧 Su
+                                </span>
+                              );
+                            } else if (resourceType === 'dogalgaz') {
+                              return (
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold bg-orange-100 text-orange-800">
+                                  🔥 Doğalgaz
+                                </span>
+                              );
+                            } else {
+                              return (
+                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold bg-gray-100 text-gray-800">
+                                  📋 Tüm Kaynaklar
+                                </span>
+                              );
+                            }
+                          })()}
+                        </div>
+                        <p className="text-sm text-gray-500">
+                          {doc.month}/{doc.year}
+                        </p>
+                      </div>
+                      <FileText className="text-emerald-600" size={24} />
+                    </div>
+                    <p className="text-xs text-gray-400 mb-3">
+                      {formatDate(doc.report_date || doc.created_at)}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        // Validate URL before using it
+                        const isValidUrl = doc.download_url && 
+                          doc.download_url.trim() !== '' && 
+                          doc.download_url !== 'null' &&
+                          doc.download_url !== 'undefined' &&
+                          (doc.download_url.startsWith('http://') || doc.download_url.startsWith('https://'));
+                        
+                        if (isValidUrl) {
+                          try {
+                            // Try to construct URL to validate it
+                            new URL(doc.download_url);
+                            return (
+                              <a
+                                href={doc.download_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 px-4 py-2 rounded-lg text-sm font-medium transition"
+                                onClick={(e) => {
+                                  // Ensure it opens in new tab and triggers download
+                                  e.preventDefault();
+                                  window.open(doc.download_url, '_blank');
+                                }}
+                              >
+                                <Download size={16} />
+                                İndir
+                              </a>
+                            );
+                          } catch (urlError) {
+                            console.error('Invalid URL:', doc.download_url, urlError);
+                            return (
+                              <span className="inline-flex items-center gap-2 bg-gray-100 text-gray-500 px-4 py-2 rounded-lg text-sm font-medium cursor-not-allowed">
+                                <Download size={16} />
+                                Geçersiz URL
+                              </span>
+                            );
+                          }
+                        } else {
+                          return (
+                            <span className="inline-flex items-center gap-2 bg-gray-100 text-gray-500 px-4 py-2 rounded-lg text-sm font-medium cursor-not-allowed">
+                              <Download size={16} />
+                              URL Yok
+                            </span>
+                          );
+                        }
+                      })()}
+                      
+                      {/* Delete Button */}
+                      <button
+                        onClick={() => handleDeleteDocument(doc.id, `${doc.neighborhood_name} - ${doc.month}/${doc.year}`)}
+                        className="inline-flex items-center gap-2 bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded-lg text-sm font-medium transition"
+                        title="Raporu Sil"
+                      >
+                        <Trash2 size={16} />
+                        Sil
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
