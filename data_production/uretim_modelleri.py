@@ -1,7 +1,13 @@
 import numpy as np
 import pandas as pd
 
-
+# --- YENİ YARDIMCI FONKSİYON (KAMPÜS İÇİN) ---
+def _is_akademik_tatil(tarih):
+    """
+    Kural: Sadece Temmuz ve Ağustos ayları tatil dönemi sayılır.
+    """
+    ay = tarih.month
+    return ay in [7, 8]  # Temmuz (7) veya Ağustos (8) ise True döner
 
 
 # --- _gecis FONKSİYONU ---
@@ -95,7 +101,18 @@ def get_mevsimsel_carpan(tarih, kaynak_tipi, profil):
     return 1.0
 
 
+# --- YENİ FONKSİYON (KAMPÜS İÇİN) ---
+def get_akademik_carpan(tarih, profil):
+    profil_tipi = profil.get("tip", "konut")
 
+    if profil_tipi == "kampus":
+        kurallar = profil.get("mevsimsel_carpani", {})
+        if _is_akademik_tatil(tarih):
+            return kurallar.get("akademik_carpan_tatil", 1.0)
+        else:
+            return kurallar.get("akademik_carpan_donem", 1.0)
+
+    return 1.0
 
 
 # --- GÜN TİPİ FONKSİYONU (KAMPÜS İÇİN GÜNCELLENDİ) ---
