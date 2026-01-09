@@ -160,3 +160,168 @@ const AnalitikModuller = () => {
       setLoading(false);
     }
   };
+  // Helper function to trigger browser download
+  const downloadPDF = (url, filename) => {
+    try {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename || 'rapor.pdf';
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error("PDF indirme hatası:", error);
+      // Fallback: open in new tab
+      window.open(url, '_blank');
+    }
+  };
+
+  const handleGenerateReport = async () => {
+    // RELIABILITY: Prevent generation if no neighborhood selected
+    if (!selectedNeighborhood || selectedNeighborhood === "" || selectedNeighborhood === "all") {
+      alert("⚠️ Lütfen bir mahalle seçin! Rapor oluşturmak için mahalle seçimi zorunludur.");
+      return;
+    }
+
+    try {
+      setGeneratingReport(true);
+      setReportProgress("Veri hazırlanıyor...");
+      
+      // Prepare filters for MongoDB query optimization
+      // Note: mahalle is now always required (no "all" option)
+      const payload = {
+        month: selectedMonth,
+        year: selectedYear,
+        mahalle: selectedNeighborhood, // Always a specific neighborhood
+        resource: selectedResource === "all" ? "all" : selectedResource // Send "all" explicitly
+      };
+      
+      console.log('📤 Sending report generation request:', payload);
+
+      setReportProgress("MongoDB'den veri çekiliyor (chunking ile optimize edildi)...");
+      
+      const response = await api.post("/analytics/generate-report", payload, {
+        timeout: 120000 // 120 seconds (2 minutes) for chunked PDF generation
+      });
+
+      setReportProgress("PDF oluşturuluyor...");
+
+      if (response.data && response.data.success) {
+        const downloadUrl = response.data.data?.downloadUrl;
+        
+        // Validate the returned URL with comprehensive safety checks
+        if (downloadUrl && 
+            typeof downloadUrl === 'string' && 
+            downloadUrl.trim() !== '' && 
+            downloadUrl !== 'null' && 
+            downloadUrl !== 'undefined' &&
+            (downloadUrl.startsWith('http://') || downloadUrl.startsWith('https://'))) {
+          try {
+            // Try to construct URL to validate it
+            new URL(downloadUrl);
+            setReportProgress("✅ Rapor başarıyla oluşturuldu!");
+            
+            // AUTO-DOWNLOAD: Trigger browser download immediately
+            const fileName = `rapor_${selectedYear}_${String(selectedMonth).padStart(2, '0')}_${selectedNeighborhood.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+            downloadPDF(downloadUrl, fileName);
+            
+            // UI UPDATE: Refresh documents list immediately after successful upload
+            setReportProgress("📋 Liste güncelleniyor...");
+            await fetchDocuments(); // Refresh documents list
+            
+            // SUCCESS TOAST: Show success notification
+            setSuccessMessage("✅ Rapor başarıyla oluşturuldu, indiriliyor ve liste güncellendi!");
+            setShowSuccessToast(true);
+            
+            // Auto-hide toast after 5 seconds
+            setTimeout(() => {
+              setShowSuccessToast(false);
+            }, 5000);
+            
+            setReportProgress("✅ Rapor başarıyla oluşturuldu ve yüklendi!");
+          } catch (urlError) {
+            console.error("Geçersiz download URL:", downloadUrl, urlError);
+            setReportProgress("⚠️ URL hatası");
+            alert("⚠️ Rapor oluşturuldu ancak geçersiz indirme URL'si döndü. Lütfen belgeler listesini kontrol edin.");
+            await fetchDocuments(); // Refresh documents list anyway
+          }
+        } else {
+          setReportProgress("⚠️ URL alınamadı");
+          alert("⚠️ Rapor oluşturuldu ancak indirme URL'si alınamadı. Lütfen belgeler listesini kontrol edin.");
+          await fetchDocuments(); // Refresh documents list anyway
+        }
+      } else {
+        const errorMsg = response.data?.message || "Bilinmeyen hata";
+        setReportProgress("❌ Hata: " + errorMsg);
+        alert("Rapor oluşturulamadı: " + errorMsg);
+      }
+    } catch (error) {
+      console.error("Rapor oluşturma hatası:", error);
+      setReportProgress("❌ Hata oluştu");
+      
+      if (error.code === 'ECONNABORTED') {
+        alert("Rapor oluşturma işlemi zaman aşımına uğradı. Chunking ile optimize edilmiş işlem 2 dakika sürebilir. Lütfen tekrar deneyin.");
+      } else if (error.response?.data?.message) {
+        // Check if it's a Supabase configuration error
+        if (error.response.data.message.includes('Supabase not configured')) {
+          alert("Supabase yapılandırması eksik! Lütfen backend/.env dosyasında SUPABASE_URL ve SUPABASE_SERVICE_ROLE_KEY değişkenlerini kontrol edin.");
+        } else if (error.response.data.message.includes('Sort exceeded memory limit')) {
+          alert("MongoDB bellek hatası! Lütfen daha spesifik filtreler seçin (ör: belirli bir mahalle).");
+        } else {
+          alert("Rapor oluşturulurken hata oluştu: " + error.response.data.message);
+        }
+      } else {
+        alert("Rapor oluşturulurken hata oluştu: " + (error.message || "Bilinmeyen hata"));
+      }
+    } finally {
+      setGeneratingReport(false);
+      setReportProgress("");
+    }
+  };
+
+  const formatDate = (dateString) => {
+    try {
+      return new Date(dateString).toLocaleDateString("tr-TR", {
+        year: "numeric",
+        month: "long",
+        day: "numeric"
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  // Delete document handler
+  const handleDeleteDocument = async (docId, docName) => {
+    // Show confirmation alert
+    const confirmed = window.confirm(
+      `Bu raporu silmek istediğinize emin misiniz?\n\nRapor: ${docName}\n\nBu işlem geri alınamaz.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      // Call DELETE API
+      const response = await api.delete(`/analytics/documents/${docId}`);
+
+      if (response.data && response.data.success) {
+        // Remove item from documents state immediately (no refresh needed)
+        setDocuments(prevDocuments => prevDocuments.filter(doc => doc.id !== docId));
+        
+        // Show success message
+        setSuccessMessage("✅ Rapor başarıyla silindi!");
+        setShowSuccessToast(true);
+        setTimeout(() => {
+          setShowSuccessToast(false);
+        }, 3000);
+      } else {
+        alert("Rapor silinirken hata oluştu: " + (response.data?.message || "Bilinmeyen hata"));
+      }
+    } catch (error) {
+      console.error("Rapor silme hatası:", error);
+      alert("Rapor silinirken hata oluştu: " + (error.response?.data?.message || error.message || "Bilinmeyen hata"));
+    }
+  };
