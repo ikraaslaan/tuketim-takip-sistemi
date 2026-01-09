@@ -1,1 +1,0 @@
-# tuketim-takip-sistemi
