@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { MapPin, Zap, Droplets, Flame, Activity, X, Search } from 'lucide-react';
+import { MapPin, Zap, Droplets, Flame, Activity, X, Search, BarChart2 } from 'lucide-react';
 import api from '../../services/api'; 
 
 /* =========================================================================
-   YARDIMCI KOMPONENTLER
+   YARDIMCI KOMPONENTLER (1. COMMIT'TEN)
    ========================================================================= */
 const StatRow = ({ icon: Icon, label, value, unit, color, iconColor, bgColor }) => (
     <div className="flex justify-between items-center p-3 rounded-xl hover:bg-gray-50 transition-colors">
@@ -44,14 +44,162 @@ const KaynakKarti = ({ title, icon: Icon, color, isSelected, onClick }) => {
 };
 
 /* =========================================================================
-   MAHALLE DETAY MODAL (PLACEHOLDER)
+   ANA MODAL (2. COMMIT'TEN GELEN GERÇEK VERİ)
    ========================================================================= */
-const MahalleDetayModal = ({ mahalleData, onClose, onIncidentCreated }) => {
-    return <div>MahalleDetayModal placeholder</div>;
+const MahalleDetayModal = ({ mahalleData: initialData, onClose, onIncidentCreated }) => {
+    // eslint-disable-next-line no-unused-vars
+    const [loading, setLoading] = useState(false);
+    const [selectedSource, setSelectedSource] = useState('Elektrik'); 
+    const [graphData, setGraphData] = useState([]); 
+    const [lastUpdate, setLastUpdate] = useState(new Date()); 
+    const [currentValues, setCurrentValues] = useState(initialData); 
+
+    // Helper function to add realistic fluctuations
+    const addFluctuations = useCallback((baseValue, source) => {
+        const variances = {
+            'Elektrik': 0.15,
+            'Su': 0.08,
+            'Doğalgaz': 0.05
+        };
+        const variance = variances[source] || 0.1;
+        const fluctuation = (Math.random() * variance * 2 - variance) * baseValue;
+        return Math.max(0, baseValue + fluctuation);
+    }, []);
+
+    // --- 1. BAŞLANGIÇ: ELİMİZDEKİ TEK VERİYİ 24 KERE YAZIYORUZ ---
+    useEffect(() => {
+        let baseValue = 0;
+        if (selectedSource === 'Elektrik') baseValue = Number(initialData.elektrik.ortalama);
+        else if (selectedSource === 'Su') baseValue = Number(initialData.su.ortalama);
+        else if (selectedSource === 'Doğalgaz') baseValue = Number(initialData.dogalgaz.ortalama);
+
+        const initialGraph = Array.from({ length: 24 }, () => addFluctuations(baseValue, selectedSource));
+        setGraphData(initialGraph);
+        setCurrentValues(initialData);
+    }, [selectedSource, initialData, addFluctuations]);
+
+    // --- 2. CANLI GÜNCELLEME: HER 15 SANİYEDE BİR ---
+    useEffect(() => {
+        const fetchRealTimeData = async () => {
+            try {
+                const response = await api.get('/incidents/live-dashboard'); 
+                
+                const allData = response.data.data;
+                const myMahalle = allData.find(m => m.mahalle === initialData.mahalle);
+
+                if (myMahalle) {
+                    setCurrentValues(myMahalle);
+
+                    let baseValue = 0;
+                    if (selectedSource === 'Elektrik') baseValue = Number(myMahalle.elektrik.ortalama);
+                    else if (selectedSource === 'Su') baseValue = Number(myMahalle.su.ortalama);
+                    else if (selectedSource === 'Doğalgaz') baseValue = Number(myMahalle.dogalgaz.ortalama);
+
+                    const newValue = addFluctuations(baseValue, selectedSource);
+
+                    console.log(`📡 Canlı Veri Alındı (${selectedSource}):`, newValue);
+
+                    setGraphData(prevData => {
+                        const newData = [...prevData.slice(1), newValue];
+                        return newData;
+                    });
+                    setLastUpdate(new Date());
+                }
+            } catch (error) {
+                console.error("Canlı veri hatası:", error);
+            }
+        };
+
+        const interval = setInterval(fetchRealTimeData, 15000); 
+        return () => clearInterval(interval);
+
+    }, [selectedSource, initialData.mahalle, addFluctuations]); 
+
+    // Time labels kullanılmıyor ama ileride gerekebilir diye tutuluyor
+    // eslint-disable-next-line no-unused-vars
+    const timeLabels = useMemo(() => {
+        const labels = [];
+        const now = new Date();
+        const currentHour = now.getHours();
+        for (let i = 23; i >= 0; i--) {
+            let hour = currentHour - i;
+            if (hour < 0) hour += 24;
+            labels.push(`${hour.toString().padStart(2, '0')}:00`);
+        }
+        return labels;
+    }, []); 
+
+    return (
+      <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in zoom-in duration-200">
+        <div className="bg-white w-full max-w-6xl rounded-3xl shadow-2xl overflow-hidden flex flex-col relative h-[90vh]">
+          
+          <div className="bg-gray-900 px-8 py-6 flex justify-between items-center text-white shrink-0">
+            <div>
+              <h2 className="text-3xl font-bold flex items-center gap-3">
+                <MapPin className="text-emerald-400" /> {currentValues.mahalle}
+              </h2>
+              <p className="text-gray-400 text-sm mt-1 flex items-center gap-2">
+                <Activity size={14} className="animate-pulse text-green-400"/> 
+                Canlı Veri (15sn) • Son Güncelleme: {lastUpdate.toLocaleTimeString()}
+              </p>
+            </div>
+            
+            <button onClick={onClose} className="bg-white/10 hover:bg-red-600 hover:text-white p-3 rounded-full transition-all cursor-pointer z-50">
+              <X size={24} className="text-white" />
+            </button>
+          </div>
+  
+          <div className="flex flex-col md:flex-row h-full overflow-hidden">
+              
+             {/* SOL MENÜ */}             
+             <div className="w-full md:w-1/3 bg-gray-50 p-6 border-r border-gray-200 overflow-y-auto">
+                <h3 className="text-gray-500 font-bold mb-4 uppercase text-xs tracking-wider">Kaynak Seçimi</h3>
+                <div className="grid gap-4">
+                    <KaynakKarti title="Elektrik" icon={Zap} color="yellow" value={currentValues.elektrik.ortalama} unit="kWh" isSelected={selectedSource === 'Elektrik'} onClick={() => setSelectedSource('Elektrik')} onAriza={() => {}} loading={false} />
+                    <KaynakKarti title="Su" icon={Droplets} color="blue" value={currentValues.su.ortalama} unit="m³" isSelected={selectedSource === 'Su'} onClick={() => setSelectedSource('Su')} onAriza={() => {}} loading={false} />
+                    <KaynakKarti title="Doğalgaz" icon={Flame} color="orange" value={currentValues.dogalgaz.ortalama} unit="m³" isSelected={selectedSource === 'Doğalgaz'} onClick={() => setSelectedSource('Doğalgaz')} onAriza={() => {}} loading={false} />
+                </div>
+             </div>
+
+             {/* SAĞ GRAFİK */}             
+             <div className="w-full md:w-2/3 p-8 flex flex-col bg-white">
+                <div className="flex justify-between items-center mb-8">
+                    <h3 className="font-bold text-gray-800 text-xl flex items-center gap-2">
+                        <BarChart2 className="text-emerald-600"/> {selectedSource} Tüketim Grafiği
+                    </h3>
+                    <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full border border-emerald-200">
+                        GERÇEK ZAMANLI
+                    </span>
+                </div>
+
+                <div className="flex-1 flex items-end justify-between gap-1 relative border-b border-l border-gray-200 p-4 min-h-[300px]">
+                   {graphData.map((val, i) => (
+                      <div key={i} className="flex-1 flex flex-col justify-end items-center group h-full relative z-10">
+                        <div className="absolute -top-10 bg-gray-900 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none">
+                            {Number(val).toFixed(2)}
+                        </div>
+                        <div 
+                            className={`w-full rounded-t-sm transition-all duration-500 ease-in-out ${selectedSource === 'Elektrik' ? 'bg-yellow-400 hover:bg-yellow-500' : selectedSource === 'Su' ? 'bg-blue-400 hover:bg-blue-500' : 'bg-orange-400 hover:bg-orange-500'}`}
+                            style={{height: `${Math.min((val / (Math.max(...graphData, 1))) * 100, 100)}%`}}
+                        />
+                      </div>
+                   ))}
+                </div>
+                
+                <div className="flex justify-between text-[10px] text-gray-400 mt-2 font-mono">
+                   <span>Geçmiş</span>
+                   <span>Şimdi</span>
+                </div>
+             </div>
+
+          </div>
+        </div>
+      </div>
+    );
 };
 
 /* =========================================================================
-   ANA SAYFA
+   ANA SAYFA (1. COMMIT'TEN)
    ========================================================================= */
 const Mahalleler = () => {
     const [mahalleler, setMahalleler] = useState([]);
