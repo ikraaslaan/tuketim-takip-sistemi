@@ -130,5 +130,88 @@
     "base_elektrik": 3500,
     "base_su": 80,
     "base_dogalgaz": 30
+  },
+  {
+    "mahalle_adi": "Cumhuriyet",
+    "profil_tipi": "avm",
+    "base_elektrik": 3500,
+    "base_su": 900,
+    "base_dogalgaz": 300
+  },
+  {
+    "mahalle_adi": "Universite",
+    "profil_tipi": "kampus",
+    "base_elektrik": 4000,
+    "base_su": 500,
+    "base_dogalgaz": 350
+  },
+  {
+    "mahalle_adi": "Konak",
+    "profil_tipi": "konut_standart",
+    "base_elektrik": 2100,
+    "base_su": 130,
+    "base_dogalgaz": 175,
+    "ozel_saatlik_profiller": {
+      "elektrik_hici_x": [0, 7, 8, 12, 17, 19, 21, 23, 24],
+      "elektrik_hici_y": [0.4, 0.5, 0.9, 0.7, 0.9, 1.7, 1.4, 0.6, 0.4],
+      "elektrik_hsonu_x": [0, 8, 10, 14, 17, 20, 22, 24],
+      "elektrik_hsonu_y": [0.4, 0.6, 1.0, 1.0, 1.3, 1.5, 1.1, 0.5],
+      "su_hici_x": [0, 7, 9, 12, 18, 20, 23, 24],
+      "su_hici_y": [0.1, 0.9, 0.6, 0.4, 1.2, 1.5, 0.5, 0.1],
+      "su_hsonu_x": [0, 9, 11, 14, 17, 19, 21, 24],
+      "su_hsonu_y": [0.1, 1.1, 1.3, 1.0, 1.2, 1.4, 0.8, 0.1],
+      "dogalgaz_kis_x": [0, 6, 8, 11, 15, 18, 21, 23, 24],
+      "dogalgaz_kis_y": [0.6, 1.4, 1.0, 0.7, 0.8, 1.6, 1.3, 0.7, 0.6],
+      "dogalgaz_yaz_hici_x": [0, 7, 12, 18, 20, 24],
+      "dogalgaz_yaz_hici_y": [0.1, 0.4, 0.2, 1.0, 0.6, 0.1],
+      "dogalgaz_yaz_hsonu_x": [0, 9, 12, 18, 20, 24],
+      "dogalgaz_yaz_hsonu_y": [0.1, 0.6, 0.3, 1.1, 0.5, 0.1]
+    }
+  },
+    {
+    "mahalle_adi": "Zafer",
+    "profil_tipi": "konut_karma",
+    "base_elektrik": 2400,
+    "base_su": 180,
+    "base_dogalgaz": 185,
+    "ozel_saatlik_profiller": {
+      "elektrik_hici_x": [0, 6, 8, 12, 17, 19, 21, 23, 24],
+      "elektrik_hici_y": [0.5, 0.6, 1.2, 0.9, 1.1, 1.8, 1.5, 0.8, 0.5],
+      "elektrik_hsonu_x": [0, 8, 11, 14, 17, 20, 22, 24],
+      "elektrik_hsonu_y": [0.5, 0.7, 1.3, 1.2, 1.4, 1.7, 1.2, 0.6],
+      "su_hici_x": [0, 6, 8, 12, 17, 19, 21, 24],
+      "su_hici_y": [0.2, 0.5, 1.6, 0.7, 1.3, 1.9, 1.3, 0.2],
+      "su_hsonu_x": [0, 8, 11, 14, 17, 20, 24],
+      "su_hsonu_y": [0.2, 0.9, 1.7, 1.4, 1.5, 1.6, 0.3],
+      "dogalgaz_kis_x": [0, 6, 8, 12, 17, 19, 22, 24],
+      "dogalgaz_kis_y": [0.8, 1.3, 1.0, 0.8, 1.1, 1.5, 1.2, 0.8],
+      "dogalgaz_yaz_hici_x": [0, 7, 12, 18, 20, 24],
+      "dogalgaz_yaz_hici_y": [0.2, 0.5, 0.3, 0.4, 1.1, 0.2],
+      "dogalgaz_yaz_hsonu_x": [0, 9, 13, 18, 20, 24],
+      "dogalgaz_yaz_hsonu_y": [0.2, 0.8, 0.4, 0.5, 1.2, 0.2]
+    }
+  },
+  {
+    "mahalle_adi": "Sarayatik",
+    "profil_tipi": "konut_karma",
+    "base_elektrik": 2500,
+    "base_su": 160,
+    "base_dogalgaz": 220,
+    "ozel_saatlik_profiller": {
+      "elektrik_hici_x": [0, 7, 9, 12, 15, 18, 20, 22, 24],
+      "elektrik_hici_y": [0.5, 0.7, 1.2, 1.1, 1.2, 1.7, 1.9, 1.1, 0.6],
+      "elektrik_hsonu_x": [0, 9, 12, 15, 18, 21, 24],
+      "elektrik_hsonu_y": [0.5, 0.8, 1.1, 1.1, 1.4, 1.6, 0.6],
+      "su_hici_x": [0, 7, 9, 12, 16, 19, 21, 24],
+      "su_hici_y": [0.2, 0.6, 1.3, 1.0, 1.2, 1.8, 1.4, 0.2],
+      "su_hsonu_x": [0, 9, 12, 15, 18, 20, 24],
+      "su_hsonu_y": [0.2, 1.0, 1.4, 1.2, 1.3, 1.5, 0.2],
+      "dogalgaz_kis_x": [0, 6, 8, 10, 14, 18, 20, 23, 24],
+      "dogalgaz_kis_y": [0.8, 1.5, 1.3, 1.1, 1.0, 1.6, 1.7, 1.2, 0.8],
+      "dogalgaz_yaz_hici_x": [0, 8, 12, 18, 20, 24],
+      "dogalgaz_yaz_hici_y": [0.2, 0.5, 0.4, 0.5, 1.0, 0.2],
+      "dogalgaz_yaz_hsonu_x": [0, 9, 13, 18, 20, 24],
+      "dogalgaz_yaz_hsonu_y": [0.2, 0.7, 0.4, 0.5, 1.1, 0.2]
+    }
   }
 ]

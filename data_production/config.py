@@ -159,3 +159,79 @@ PROFIL_PARK = {
         'dogalgaz_yaz_x':   [0, 24], 'dogalgaz_yaz_y':   [1.0, 1.0],
     }
 }
+
+PROFIL_AVM = {
+    'tip': 'avm', 
+    'mevsimsel_carpani': {
+        # --- DEĞİŞİKLİK BURADA ---
+        'dogalgaz_kis': 1.5,    # Sadece yemek katı (Food Court) ocakları. Isınma yok!
+        'elektrik_kis': 2.8,    # Isınma yükü elektriğe bindi (Yazın soğutma kadar yüksek).
+        'yaz_klima': 2.5,       # Yazın soğutma devam.
+        'yaz_su': 1.3,
+        'kis_su': 1.0
+    },
+    'gun_tipi_carpan': { 
+        'hici': 1.0, 
+        'hsonu': 1.6 
+    },
+    'saatlik_profiller': {
+        # --- ELEKTRİK ---
+        # Kışın da klima santralleri çalıştığı için profil yaza benzer,
+        # Sabah erken başlar (ortamı ısıtmak için), akşam kapanışta biter.
+        'elektrik_hici_x':  [0,   8,   9,   12,  18,  22,  23, 24],
+        'elektrik_hici_y':  [0.3, 0.6, 1.5, 1.5, 1.5, 1.0, 0.5, 0.3],
+
+        'elektrik_hsonu_x': [0,   9,   11,  14,  19,  22,  24],
+        'elektrik_hsonu_y': [0.3, 0.6, 2.0, 2.5, 2.5, 1.2, 0.3],
+
+        # --- SU (Değişmedi) ---
+        'su_hici_x':        [0,   9,   12,  14,  16,  19,  21, 24],
+        'su_hici_y':        [0.1, 0.2, 2.5, 1.5, 1.2, 2.0, 0.5, 0.1], 
+        'su_hsonu_x':       [0,   10,  13,  15,  19,  21, 24],
+        'su_hsonu_y':       [0.1, 0.3, 3.0, 2.0, 3.5, 1.0, 0.1],
+
+        # --- DOĞALGAZ (Sadece Yemek) ---
+        # Artık ısınma olmadığı için sadece öğlen ve akşam yemek saatlerinde artar.
+        'dogalgaz_kis_x':   [0,   10,  12,  14,  18,  20, 24],
+        'dogalgaz_kis_y':   [0.1, 0.5, 1.5, 1.0, 1.5, 0.8, 0.1], 
+
+        'dogalgaz_yaz_x':   [0,   10,  12,  14,  18,  20, 24],
+        'dogalgaz_yaz_y':   [0.1, 0.5, 1.5, 1.0, 1.5, 0.8, 0.1],
+    },
+}
+
+PROFIL_KAMPUS = {
+    'tip': 'kampus',
+    'mevsimsel_carpani': {
+        'dogalgaz_kis': 8.0, 
+        'elektrik_kis': 1.6, 
+        'yaz_klima': 1.8, 
+        'akademik_carpan_donem': 1.5,
+        'akademik_carpan_tatil': 1.0
+    },
+    'gun_tipi_carpan': { 'hici': 1.0, 'hsonu': 1.0 },
+    'saatlik_profiller': {
+        'elektrik_donem_hici_x': [0,   7,   8,   17,   18,   24],
+        'elektrik_donem_hici_y': [1.5, 1.8, 3.0, 3.0, 1.8, 1.5],
+        'elektrik_donem_hsonu_x': [0, 24],
+        'elektrik_donem_hsonu_y': [1.6, 1.6],
+        'elektrik_tatil_hici_x': [0, 24],
+        'elektrik_tatil_hici_y': [1.4, 1.4],
+        'elektrik_tatil_hsonu_x': [0, 24],
+        'elektrik_tatil_hsonu_y': [1.4, 1.4],
+        'dogalgaz_kis_x':   [0, 24],
+        'dogalgaz_kis_y':   [1.0, 1.0], 
+        'dogalgaz_yaz_hici_x':  [0,   6,   8,   12,   14,   18,   20,   24],
+        'dogalgaz_yaz_hici_y':  [0.8, 1.5, 1.7, 1.7, 1.4, 1.7, 1.5, 0.8],
+        'dogalgaz_yaz_hsonu_x': [0,   6,   8,   12,   14,   18,   20,   24],
+        'dogalgaz_yaz_hsonu_y': [0.8, 1.1, 1.3, 1.1, 1.0, 1.3, 1.1, 0.8],
+        'su_donem_hici_x':    [0,   7,   8,   17,   18,   24],
+        'su_donem_hici_y':    [0.8, 1.5, 2.5, 2.5, 1.5, 0.8],
+        'su_donem_hsonu_x':   [0, 24],
+        'su_donem_hsonu_y':   [0.7, 0.7],
+        'su_tatil_hici_x':    [0, 24],
+        'su_tatil_hici_y':    [0.7, 0.7],
+        'su_tatil_hsonu_x':   [0, 24],
+        'su_tatil_hsonu_y':   [0.7, 0.7],
+    }
+}
