@@ -18,4 +18,7 @@ router.get('/statistical-summary', protect, reportController.getStatisticalSumma
 // Zaman serisi analizi (frontend'in beklediği format)
 router.get('/time-series', protect, reportController.getTimeSeriesAnalysis);
 
+// Korelasyon analizi (ayrı endpoint)
+router.get('/correlation', protect, reportController.getCorrelationAnalysis);
+
 module.exports = router;

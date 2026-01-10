@@ -1,6 +1,7 @@
 const { generateAndUploadReport } = require('../services/reportService');
 const supabase = require('../config/supabase');
 const Reading = require('../models/Reading'); // Veri çekmek için gerekli
+const Incident = require('../models/Incident'); // Arıza verileri için
 
 // 1. İstatistik Özeti Raporu Oluştur
 exports.generateMonthlyStatsReport = async (req, res) => {
@@ -373,16 +374,143 @@ exports.getStatisticalSummary = async (req, res) => {
 exports.getTimeSeriesAnalysis = async (req, res) => {
     try {
         const { year } = req.query;
-        // Basit bir zaman serisi analizi döndür
+        const selectedYear = year ? parseInt(year) : new Date().getFullYear();
+        
+        const startDate = new Date(selectedYear, 0, 1);
+        const endDate = new Date(selectedYear, 11, 31, 23, 59, 59);
+        
+        // Mevsimsel tüketim analizi (ay bazlı)
+        const monthlyConsumption = await Reading.aggregate([
+            {
+                $match: {
+                    Tarih: { $gte: startDate, $lte: endDate }
+                }
+            },
+            {
+                $group: {
+                    _id: { month: { $month: "$Tarih" } },
+                    elektrik_avg: { $avg: "$Elektrik_Tuketim" },
+                    su_avg: { $avg: "$Su_Tuketim" },
+                    dogalgaz_avg: { $avg: "$Dogalgaz_Tuketim" }
+                }
+            },
+            { $sort: { "_id.month": 1 } }
+        ]);
+        
+        // Mevsimleri belirle (Kış: 12,1,2 | İlkbahar: 3,4,5 | Yaz: 6,7,8 | Sonbahar: 9,10,11)
+        const seasonalData = {
+            kış: { months: [12, 1, 2], elektrik: [], su: [], dogalgaz: [] },
+            ilkbahar: { months: [3, 4, 5], elektrik: [], su: [], dogalgaz: [] },
+            yaz: { months: [6, 7, 8], elektrik: [], su: [], dogalgaz: [] },
+            sonbahar: { months: [9, 10, 11], elektrik: [], su: [], dogalgaz: [] }
+        };
+        
+        monthlyConsumption.forEach(item => {
+            const month = item._id.month;
+            let season = null;
+            
+            if (seasonalData.kış.months.includes(month)) season = seasonalData.kış;
+            else if (seasonalData.ilkbahar.months.includes(month)) season = seasonalData.ilkbahar;
+            else if (seasonalData.yaz.months.includes(month)) season = seasonalData.yaz;
+            else if (seasonalData.sonbahar.months.includes(month)) season = seasonalData.sonbahar;
+            
+            if (season) {
+                season.elektrik.push(item.elektrik_avg || 0);
+                season.su.push(item.su_avg || 0);
+                season.dogalgaz.push(item.dogalgaz_avg || 0);
+            }
+        });
+        
+        // Mevsimsel ortalamaları hesapla
+        const seasonalConsumption = {};
+        Object.keys(seasonalData).forEach(seasonKey => {
+            const season = seasonalData[seasonKey];
+            const calcAvg = (arr) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+            
+            seasonalConsumption[seasonKey] = {
+                name: seasonKey.charAt(0).toUpperCase() + seasonKey.slice(1),
+                elektrik: {
+                    average: calcAvg(season.elektrik),
+                    min: season.elektrik.length > 0 ? Math.min(...season.elektrik) : 0,
+                    max: season.elektrik.length > 0 ? Math.max(...season.elektrik) : 0
+                },
+                su: {
+                    average: calcAvg(season.su),
+                    min: season.su.length > 0 ? Math.min(...season.su) : 0,
+                    max: season.su.length > 0 ? Math.max(...season.su) : 0
+                },
+                dogalgaz: {
+                    average: calcAvg(season.dogalgaz),
+                    min: season.dogalgaz.length > 0 ? Math.min(...season.dogalgaz) : 0,
+                    max: season.dogalgaz.length > 0 ? Math.max(...season.dogalgaz) : 0
+                }
+            };
+        });
+        
+        // Mevsimsel arıza analizi
+        const monthlyIncidents = await Incident.aggregate([
+            {
+                $match: {
+                    Baslangic_Tarihi: { $gte: startDate, $lte: endDate }
+                }
+            },
+            {
+                $group: {
+                    _id: { month: { $month: "$Baslangic_Tarihi" }, resource: "$Kaynak_Tipi" },
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+        
+        const seasonalIncidents = {
+            kış: { months: [12, 1, 2], incidents: [] },
+            ilkbahar: { months: [3, 4, 5], incidents: [] },
+            yaz: { months: [6, 7, 8], incidents: [] },
+            sonbahar: { months: [9, 10, 11], incidents: [] }
+        };
+        
+        monthlyIncidents.forEach(item => {
+            const month = item._id.month;
+            let season = null;
+            
+            if (seasonalIncidents.kış.months.includes(month)) season = seasonalIncidents.kış;
+            else if (seasonalIncidents.ilkbahar.months.includes(month)) season = seasonalIncidents.ilkbahar;
+            else if (seasonalIncidents.yaz.months.includes(month)) season = seasonalIncidents.yaz;
+            else if (seasonalIncidents.sonbahar.months.includes(month)) season = seasonalIncidents.sonbahar;
+            
+            if (season) {
+                season.incidents.push({ resource: item._id.resource, count: item.count });
+            }
+        });
+        
+        // Mevsimsel arıza özeti
+        const seasonalIncidentsSummary = {};
+        Object.keys(seasonalIncidents).forEach(seasonKey => {
+            const season = seasonalIncidents[seasonKey];
+            const byResource = { Elektrik: 0, Su: 0, Dogalgaz: 0 };
+            let total = 0;
+            
+            season.incidents.forEach(inc => {
+                byResource[inc.resource] = (byResource[inc.resource] || 0) + inc.count;
+                total += inc.count;
+            });
+            
+            seasonalIncidentsSummary[seasonKey] = {
+                name: seasonKey.charAt(0).toUpperCase() + seasonKey.slice(1),
+                count: total,
+                byResource: byResource
+            };
+        });
+        
         res.json({ 
             success: true, 
             data: {
-                seasonalConsumption: {},
-                seasonalIncidents: {},
-                correlations: []
+                seasonalConsumption: seasonalConsumption,
+                seasonalIncidents: seasonalIncidentsSummary
             }
         });
     } catch (error) {
+        console.error("Zaman serisi analizi hatası:", error);
         res.status(500).json({ success: false, error: error.message });
     }
 };
@@ -444,6 +572,199 @@ exports.deleteDocument = async (req, res) => {
         res.json({ success: true, message: 'Belge Supabase\'den silindi' });
     } catch (error) {
         console.error('❌ Belge silme hatası:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+// Korelasyon Analizi - Ayrı endpoint
+exports.getCorrelationAnalysis = async (req, res) => {
+    try {
+        const { year, month, season, mahalle } = req.query;
+        const selectedYear = year ? parseInt(year) : new Date().getFullYear();
+        
+        // Mevsimleri belirle
+        const getSeason = (monthNum) => {
+            if ([12, 1, 2].includes(monthNum)) return 'Kış';
+            if ([3, 4, 5].includes(monthNum)) return 'İlkbahar';
+            if ([6, 7, 8].includes(monthNum)) return 'Yaz';
+            if ([9, 10, 11].includes(monthNum)) return 'Sonbahar';
+            return 'Bilinmeyen';
+        };
+        
+        // Mevsim aylarını belirle
+        const getSeasonMonths = (seasonName) => {
+            if (seasonName === 'kis') return [12, 1, 2]; // Kış
+            if (seasonName === 'ilkbahar') return [3, 4, 5]; // İlkbahar
+            if (seasonName === 'yaz') return [6, 7, 8]; // Yaz
+            if (seasonName === 'sonbahar') return [9, 10, 11]; // Sonbahar
+            return [];
+        };
+        
+        // Tarih aralığını belirle
+        let startDate, endDate;
+        
+        if (season) {
+            // Mevsim seçildi
+            const seasonMonths = getSeasonMonths(season);
+            
+            // Kış mevsimi için özel durum (Aralık önceki yıl, Ocak-Şubat seçili yıl)
+            if (season === 'kis') {
+                startDate = new Date(selectedYear - 1, 11, 1); // Önceki yıl Aralık
+                endDate = new Date(selectedYear, 2, 0, 23, 59, 59); // Seçili yıl Şubat sonu
+            } else {
+                // Diğer mevsimler için normal
+                startDate = new Date(selectedYear, seasonMonths[0] - 1, 1);
+                endDate = new Date(selectedYear, seasonMonths[seasonMonths.length - 1], 0, 23, 59, 59);
+            }
+        } else if (month) {
+            // Ay seçildi - o ayın ait olduğu mevsimin tüm aylarını al
+            const selectedMonth = parseInt(month);
+            const monthSeason = getSeason(selectedMonth);
+            const seasonMonths = getSeasonMonths(monthSeason === 'Kış' ? 'kis' : 
+                                                  monthSeason === 'İlkbahar' ? 'ilkbahar' :
+                                                  monthSeason === 'Yaz' ? 'yaz' : 'sonbahar');
+            
+            // Kış mevsimi için özel durum
+            if (monthSeason === 'Kış') {
+                startDate = new Date(selectedYear - 1, 11, 1); // Önceki yıl Aralık
+                endDate = new Date(selectedYear, 2, 0, 23, 59, 59); // Seçili yıl Şubat sonu
+            } else {
+                // Diğer mevsimler için normal
+                startDate = new Date(selectedYear, seasonMonths[0] - 1, 1);
+                endDate = new Date(selectedYear, seasonMonths[seasonMonths.length - 1], 0, 23, 59, 59);
+            }
+        } else {
+            // Tüm yıl
+            startDate = new Date(selectedYear, 0, 1);
+            endDate = new Date(selectedYear, 11, 31, 23, 59, 59);
+        }
+        
+        // Match stage oluştur
+        const matchStage = {
+            Tarih: { $gte: startDate, $lte: endDate }
+        };
+        
+        // Mahalle filtresi ekle
+        if (mahalle) {
+            matchStage.Mahalle = mahalle;
+        }
+        
+        // Aylık tüketim verilerini çek
+        const monthlyData = await Reading.aggregate([
+            {
+                $match: matchStage
+            },
+            {
+                $group: {
+                    _id: { month: { $month: "$Tarih" } },
+                    elektrik: { $avg: "$Elektrik_Tuketim" },
+                    su: { $avg: "$Su_Tuketim" },
+                    dogalgaz: { $avg: "$Dogalgaz_Tuketim" }
+                }
+            },
+            { $sort: { "_id.month": 1 } }
+        ]);
+        
+        // Mevsimsel toplamları hesapla
+        const seasonalTotals = {
+            'Kış': { elektrik: [], su: [], dogalgaz: [] },
+            'İlkbahar': { elektrik: [], su: [], dogalgaz: [] },
+            'Yaz': { elektrik: [], su: [], dogalgaz: [] },
+            'Sonbahar': { elektrik: [], su: [], dogalgaz: [] }
+        };
+        
+        monthlyData.forEach(item => {
+            const season = getSeason(item._id.month);
+            if (seasonalTotals[season]) {
+                seasonalTotals[season].elektrik.push(item.elektrik || 0);
+                seasonalTotals[season].su.push(item.su || 0);
+                seasonalTotals[season].dogalgaz.push(item.dogalgaz || 0);
+            }
+        });
+        
+        // Eğer mevsim veya ay seçildiyse, sadece o mevsimin verilerini göster
+        if (season || month) {
+            let selectedSeasonName = '';
+            if (season) {
+                // Mevsim seçildi
+                const seasonMap = {
+                    'kis': 'Kış',
+                    'ilkbahar': 'İlkbahar',
+                    'yaz': 'Yaz',
+                    'sonbahar': 'Sonbahar'
+                };
+                selectedSeasonName = seasonMap[season] || '';
+            } else if (month) {
+                // Ay seçildi - o ayın ait olduğu mevsimi bul
+                const selectedMonth = parseInt(month);
+                selectedSeasonName = getSeason(selectedMonth);
+            }
+            
+            // Diğer mevsimlerin verilerini temizle
+            Object.keys(seasonalTotals).forEach(seasonKey => {
+                if (seasonKey !== selectedSeasonName) {
+                    seasonalTotals[seasonKey] = { elektrik: [], su: [], dogalgaz: [] };
+                }
+            });
+        }
+        
+        // Her kaynak için zirve ve en düşük mevsimi bul
+        const correlations = [];
+        const resources = [
+            { key: 'elektrik', name: 'Elektrik', unit: 'kWh' },
+            { key: 'su', name: 'Su', unit: 'm³' },
+            { key: 'dogalgaz', name: 'Doğalgaz', unit: 'm³' }
+        ];
+        
+        resources.forEach(resource => {
+            const seasonAverages = {};
+            Object.keys(seasonalTotals).forEach(season => {
+                const values = seasonalTotals[season][resource.key];
+                seasonAverages[season] = values.length > 0 
+                    ? values.reduce((a, b) => a + b, 0) / values.length 
+                    : 0;
+            });
+            
+            // Zirve ve en düşük mevsimi bul
+            let peakSeason = '';
+            let peakValue = 0;
+            let lowestSeason = '';
+            let lowestValue = Infinity;
+            
+            Object.keys(seasonAverages).forEach(season => {
+                const avg = seasonAverages[season];
+                if (avg > peakValue) {
+                    peakValue = avg;
+                    peakSeason = season;
+                }
+                if (avg < lowestValue && avg > 0) {
+                    lowestValue = avg;
+                    lowestSeason = season;
+                }
+            });
+            
+            if (peakSeason && lowestSeason) {
+                correlations.push({
+                    resource: resource.name,
+                    peakSeason: peakSeason,
+                    peakValue: peakValue,
+                    lowestSeason: lowestSeason,
+                    lowestValue: lowestValue,
+                    unit: resource.unit,
+                    seasonalAverages: seasonAverages
+                });
+            }
+        });
+        
+        res.json({
+            success: true,
+            data: {
+                correlations: correlations,
+                year: selectedYear
+            }
+        });
+    } catch (error) {
+        console.error("Korelasyon analizi hatası:", error);
         res.status(500).json({ success: false, error: error.message });
     }
 };

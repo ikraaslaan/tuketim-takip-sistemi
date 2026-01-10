@@ -95,34 +95,6 @@ const ZamanSerisiAnalizi = ({ loading, timeSeriesAnalysis, selectedYear, onYearC
           </div>
         </div>
 
-        {/* Korelasyon Analizi */}
-        {timeSeriesAnalysis.correlations && timeSeriesAnalysis.correlations.length > 0 && (
-          <div>
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Korelasyon Analizi</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {timeSeriesAnalysis.correlations.map((corr, index) => (
-                <div
-                  key={index}
-                  className="border border-gray-200 rounded-lg p-4 bg-blue-50"
-                >
-                  <h4 className="font-semibold text-gray-800 mb-3 uppercase">
-                    {corr.resource}
-                  </h4>
-                  <div className="space-y-2 text-sm">
-                    <p>
-                      <span className="font-medium">Zirve Mevsim:</span> {corr.peakSeason} (
-                      {corr.peakValue.toFixed(2)})
-                    </p>
-                    <p>
-                      <span className="font-medium">En Düşük Mevsim:</span> {corr.lowestSeason} (
-                      {corr.lowestValue.toFixed(2)})
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

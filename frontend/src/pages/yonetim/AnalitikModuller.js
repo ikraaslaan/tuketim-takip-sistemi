@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { FileText, TrendingUp, BarChart3 } from "lucide-react";
+import { FileText, TrendingUp, BarChart3, Activity } from "lucide-react";
 import api from "../../services/api";
 
 // Hooks
 import { useDocuments } from "./hooks/useDocuments";
 import { useStatisticalSummary } from "./hooks/useStatisticalSummary";
 import { useTimeSeriesAnalysis } from "./hooks/useTimeSeriesAnalysis";
+import { useCorrelationAnalysis } from "./hooks/useCorrelationAnalysis";
 import { useReportGeneration } from "./hooks/useReportGeneration";
 
 // Components
@@ -13,6 +14,7 @@ import BelgelerListesi from "./components/BelgelerListesi";
 import RaporFormu from "./components/RaporFormu";
 import IstatistikOzeti from "./components/IstatistikOzeti";
 import ZamanSerisiAnalizi from "./components/ZamanSerisiAnalizi";
+import KorelasyonAnalizi from "./components/KorelasyonAnalizi";
 
 const AnalitikModuller = () => {
   const [activePage, setActivePage] = useState("belgeler");
@@ -47,10 +49,23 @@ const AnalitikModuller = () => {
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
+  // Korelasyon analizi için ayrı state'ler
+  const [correlationNeighborhood, setCorrelationNeighborhood] = useState("");
+  const [correlationMonth, setCorrelationMonth] = useState(null);
+  const [correlationSeason, setCorrelationSeason] = useState(null);
+  const [correlationYear, setCorrelationYear] = useState(new Date().getFullYear());
+
   // Custom hooks
   const { documents, loading: documentsLoading, fetchDocuments } = useDocuments(activePage);
   const { statisticalSummary, loading: statsLoading } = useStatisticalSummary(activePage, selectedMonth, selectedYear);
   const { timeSeriesAnalysis, loading: timeSeriesLoading } = useTimeSeriesAnalysis(activePage, selectedYear);
+  const { correlationAnalysis, loading: correlationLoading } = useCorrelationAnalysis(
+    activePage, 
+    correlationYear, 
+    correlationMonth,
+    correlationSeason,
+    correlationNeighborhood
+  );
   
   const {
     generatingReport,
@@ -163,6 +178,19 @@ const AnalitikModuller = () => {
           <BarChart3 className="inline-block mr-2" size={18} />
           Zaman Serisi Analizi
         </button>
+
+        <button
+          onClick={() => setActivePage("korelasyon")}
+          className={`px-6 py-2 rounded-full font-bold transition-all
+            ${
+              activePage === "korelasyon"
+                ? "bg-emerald-600 text-white shadow"
+                : "bg-white text-emerald-700 hover:bg-emerald-100"
+            }`}
+        >
+          <Activity className="inline-block mr-2" size={18} />
+          Korelasyon Analizi
+        </button>
       </div>
 
       {/* SAYFA İÇERİĞİ */}
@@ -222,6 +250,23 @@ const AnalitikModuller = () => {
             timeSeriesAnalysis={timeSeriesAnalysis}
             selectedYear={selectedYear}
             onYearChange={setSelectedYear}
+          />
+        )}
+
+        {/* KORELASYON ANALİZİ SAYFASI */}
+        {activePage === "korelasyon" && (
+          <KorelasyonAnalizi
+            loading={correlationLoading}
+            correlationAnalysis={correlationAnalysis}
+            selectedYear={correlationYear}
+            selectedMonth={correlationMonth}
+            selectedSeason={correlationSeason}
+            selectedNeighborhood={correlationNeighborhood}
+            neighborhoods={neighborhoods}
+            onYearChange={setCorrelationYear}
+            onMonthChange={setCorrelationMonth}
+            onSeasonChange={setCorrelationSeason}
+            onNeighborhoodChange={setCorrelationNeighborhood}
           />
         )}
       </div>
