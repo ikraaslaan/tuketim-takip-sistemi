@@ -84,12 +84,12 @@ const AnalitikModuller = () => {
   // Handle document deletion - refresh list instead of local state
   const handleDeleteDocument = (docId) => {
     // Documents are managed by useDocuments hook, just refresh
-    fetchDocuments();
-    setSuccessMessage("✅ Rapor başarıyla silindi!");
-    setShowSuccessToast(true);
-    setTimeout(() => {
-      setShowSuccessToast(false);
-    }, 3000);
+      fetchDocuments();
+        setSuccessMessage("✅ Rapor başarıyla silindi!");
+        setShowSuccessToast(true);
+        setTimeout(() => {
+          setShowSuccessToast(false);
+        }, 3000);
   };
 
   // Handle report generation
@@ -175,21 +175,6 @@ const AnalitikModuller = () => {
                 <FileText className="text-emerald-600" />
                 PDF Belgeler
               </h2>
-              
-              <RaporFormu
-                neighborhoods={neighborhoods}
-                selectedNeighborhood={selectedNeighborhood}
-                setSelectedNeighborhood={setSelectedNeighborhood}
-                selectedResource={selectedResource}
-                setSelectedResource={setSelectedResource}
-                selectedMonth={selectedMonth}
-                setSelectedMonth={setSelectedMonth}
-                selectedYear={selectedYear}
-                setSelectedYear={setSelectedYear}
-                generatingReport={generatingReport}
-                reportProgress={reportProgress}
-                onGenerate={handleGenerateReport}
-              />
             </div>
 
             <BelgelerListesi
@@ -203,14 +188,31 @@ const AnalitikModuller = () => {
 
         {/* İSTATİSTİK ÖZETİ SAYFASI */}
         {activePage === "istatistik" && (
-          <IstatistikOzeti
-            loading={statsLoading}
-            statisticalSummary={statisticalSummary}
-            selectedMonth={selectedMonth}
-            selectedYear={selectedYear}
-            onMonthChange={setSelectedMonth}
-            onYearChange={setSelectedYear}
-          />
+          <div>
+            <RaporFormu
+              neighborhoods={neighborhoods}
+              selectedNeighborhood={selectedNeighborhood}
+              setSelectedNeighborhood={setSelectedNeighborhood}
+              selectedResource={selectedResource}
+              setSelectedResource={setSelectedResource}
+              selectedMonth={selectedMonth}
+              setSelectedMonth={setSelectedMonth}
+              selectedYear={selectedYear}
+              setSelectedYear={setSelectedYear}
+              generatingReport={generatingReport}
+              reportProgress={reportProgress}
+              onGenerate={handleGenerateReport}
+            />
+            
+            <IstatistikOzeti
+              loading={statsLoading}
+              statisticalSummary={statisticalSummary}
+              selectedMonth={selectedMonth}
+              selectedYear={selectedYear}
+              onMonthChange={setSelectedMonth}
+              onYearChange={setSelectedYear}
+            />
+          </div>
         )}
 
         {/* ZAMAN SERİSİ ANALİZİ SAYFASI */}

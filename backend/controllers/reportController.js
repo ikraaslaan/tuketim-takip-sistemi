@@ -170,10 +170,24 @@ exports.listDocuments = async (req, res) => {
                     lastPart = lastPart.replace('_dogalgaz', '');
                 }
                 
-                // Mahalle adını düzenle (tire'leri boşlukla değiştir, baş harfleri büyüt)
+                // Mahalle adını düzenle (alt çizgileri boşlukla değiştir, baş harfleri büyüt)
+                // Örnek: "Izzet_Pasa" -> "İzzet Paşa" (Türkçe karakterleri geri getir)
+                const englishToTurkish = {
+                    'c': 'ç', 'C': 'Ç',
+                    'g': 'ğ', 'G': 'Ğ',
+                    'i': 'ı', 'I': 'İ',
+                    'o': 'ö', 'O': 'Ö',
+                    's': 'ş', 'S': 'Ş',
+                    'u': 'ü', 'U': 'Ü'
+                };
+                
+                // Basit bir yaklaşım: Alt çizgileri boşlukla değiştir ve baş harfleri büyüt
+                // Not: Tam Türkçe karakter dönüşümü için orijinal mahalle listesine bakmak gerekir
                 neighborhood_name = lastPart
                     .replace(/_/g, ' ') // Alt çizgileri boşlukla değiştir
-                    .replace(/\b\w/g, l => l.toUpperCase()) // Her kelimenin ilk harfini büyüt
+                    .split(' ')
+                    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                    .join(' ')
                     .trim() || 'Bilinmeyen';
             }
             // Format: Istatistik-1-2025-UUID (eski format)
@@ -291,12 +305,35 @@ exports.generateReport = async (req, res) => {
             tableData: stats
         };
         
-        // Dosya adı formatı: rapor_2025_12_Aksaray_su (resource bilgisi eklendi, düzenli format)
+        // Dosya adı formatı: rapor_2025_12_Izzet_Pasa_su (resource bilgisi eklendi, düzenli format)
         const resourceSuffix = resource === 'all' ? '' : `_${resource}`;
-        // Mahalle adını düzenle (boşlukları alt çizgiyle değiştir, özel karakterleri kaldır)
-        const cleanMahalle = mahalle.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+        
+        // Mahalle adını düzenle - Türkçe karakterleri İngilizce karşılıklarına çevir
+        const turkishToEnglish = {
+            'ç': 'c', 'Ç': 'C',
+            'ğ': 'g', 'Ğ': 'G',
+            'ı': 'i', 'İ': 'I',
+            'ö': 'o', 'Ö': 'O',
+            'ş': 's', 'Ş': 'S',
+            'ü': 'u', 'Ü': 'U'
+        };
+        
+        let cleanMahalle = mahalle;
+        // Türkçe karakterleri değiştir
+        Object.keys(turkishToEnglish).forEach(turkish => {
+            cleanMahalle = cleanMahalle.replace(new RegExp(turkish, 'g'), turkishToEnglish[turkish]);
+        });
+        
+        // Boşlukları alt çizgiyle değiştir, özel karakterleri kaldır, sadece harf, rakam ve alt çizgi bırak
+        cleanMahalle = cleanMahalle
+            .trim()
+            .replace(/\s+/g, '_') // Boşlukları alt çizgiye çevir
+            .replace(/[^a-zA-Z0-9_]/g, '') // Özel karakterleri kaldır
+            .replace(/_+/g, '_') // Birden fazla alt çizgiyi tek alt çizgiye çevir
+            .replace(/^_|_$/g, ''); // Başta ve sonda alt çizgi varsa kaldır
+        
         const fileName = `rapor_${y}_${String(m).padStart(2, '0')}_${cleanMahalle}${resourceSuffix}`;
-        console.log('📄 PDF oluşturuluyor, dosya adı:', fileName, 'Resource:', resource, 'Mahalle:', mahalle);
+        console.log('📄 PDF oluşturuluyor, dosya adı:', fileName, 'Resource:', resource, 'Mahalle:', mahalle, 'Temizlenmiş:', cleanMahalle);
         
         const publicUrl = await generateAndUploadReport(reportData, fileName);
         
