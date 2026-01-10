@@ -1,0 +1,36 @@
+const express = require('express');
+const dotenv = require('dotenv');
+const cors = require('cors');
+const connectDB = require('./config/db');
+const readingRoutes = require('./routes/readingRoutes');
+const authRoutes = require('./routes/authRoutes');
+const simulationRoutes = require('./routes/incidentRoutes');  
+const reportRoutes = require('./routes/reportRoutes');
+
+
+// Ayarlar
+dotenv.config();
+const app = express();
+
+// Middleware
+app.use(express.json());
+app.use(cors());
+
+// Veritabanına Bağlan
+connectDB();
+
+app.use('/api/readings', readingRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/incidents', simulationRoutes);
+app.use('/api/reports', reportRoutes);
+
+
+// Test Endpoint (Scrum Master'a 'sistem hazır' mesajı)
+app.get('/', (req, res) => {
+    res.json({ message: "Mahalle Yonetim Sistemi v2 API aktif." });
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+    console.log(`Sunucu ${PORT} portunda calisiyor.`);
+});
