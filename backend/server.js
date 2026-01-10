@@ -6,6 +6,7 @@ const readingRoutes = require('./routes/readingRoutes');
 const authRoutes = require('./routes/authRoutes');
 const simulationRoutes = require('./routes/incidentRoutes');  
 const reportRoutes = require('./routes/reportRoutes');
+const statsRoutes = require('./routes/statsRoutes');
 
 
 // Ayarlar
@@ -23,6 +24,7 @@ app.use('/api/readings', readingRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/incidents', simulationRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/stats', statsRoutes);
 
 
 // Test Endpoint (Scrum Master'a 'sistem hazır' mesajı)
