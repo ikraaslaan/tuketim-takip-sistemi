@@ -1,5 +1,6 @@
 const Incident = require('../models/Incident');
 const Subscriber = require('../models/Subscriber');
+const Reading = require('../models/Reading');
 const { sendIncidentNotification } = require('../services/mailService');
 
 // Anlık Arıza Bildirimi (POST)
@@ -213,47 +214,104 @@ exports.resolveIncident = async (req, res) => {
 // Live Dashboard - Mahalle bazlı aktif arızalar
 exports.getLiveDashboard = async (req, res) => {
     try {
-        // Aktif arızaları mahalle bazında grupla
-        // Hem 'Aktif'/'Pasif' hem 'AKTIF'/'PASIF' formatlarını destekle
+        // 1. Tüketim verilerini çek (mahalle bazında ortalama)
+        const consumptionStats = await Reading.aggregate([
+            {
+                $group: {
+                    _id: '$Mahalle',
+                    elektrikOrtalama: { $avg: '$Elektrik_Tuketim' },
+                    suOrtalama: { $avg: '$Su_Tuketim' },
+                    dogalgazOrtalama: { $avg: '$Dogalgaz_Tuketim' }
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    mahalle: '$_id',
+                    elektrik: {
+                        ortalama: { $round: ['$elektrikOrtalama', 2] }
+                    },
+                    su: {
+                        ortalama: { $round: ['$suOrtalama', 2] }
+                    },
+                    dogalgaz: {
+                        ortalama: { $round: ['$dogalgazOrtalama', 2] }
+                    }
+                }
+            }
+        ]);
+
+        // 2. Aktif arızaları mahalle bazında grupla
         const incidents = await Incident.find({ 
             Durum: { $in: ['Aktif', 'Pasif', 'AKTIF', 'PASIF'] }
         }).sort({ Baslangic_Tarihi: -1 });
 
-        // Mahalle bazında grupla
-        const mahalleMap = {};
+        // 3. Mahalle bazında arızaları grupla
+        const incidentMap = {};
         incidents.forEach(incident => {
             const mahalle = incident.Mahalle;
-            if (!mahalleMap[mahalle]) {
-                mahalleMap[mahalle] = {
-                    mahalle: mahalle,
+            if (!incidentMap[mahalle]) {
+                incidentMap[mahalle] = {
                     incidents: [],
                     activeCount: 0
                 };
             }
-            mahalleMap[mahalle].incidents.push(incident);
-            // Hem 'Aktif' hem 'AKTIF' formatlarını kontrol et
+            incidentMap[mahalle].incidents.push(incident);
             if (incident.Durum === 'Aktif' || incident.Durum === 'AKTIF') {
-                mahalleMap[mahalle].activeCount++;
+                incidentMap[mahalle].activeCount++;
             }
         });
 
-        const result = Object.values(mahalleMap).map(item => ({
-            mahalle: item.mahalle,
-            activeIncidents: item.activeCount,
-            totalIncidents: item.incidents.length,
-            incidents: item.incidents.map(inc => ({
-                id: inc._id,
-                kaynak: inc.Kaynak_Tipi,
-                tip: inc.Tip,
-                durum: inc.Durum,
-                aciklama: inc.Aciklama,
-                baslangic: inc.Baslangic_Tarihi
-            }))
-        }));
+        // 4. Tüketim verileri ile arıza verilerini birleştir
+        const result = consumptionStats.map(stat => {
+            const incidentData = incidentMap[stat.mahalle] || { incidents: [], activeCount: 0 };
+            return {
+                mahalle: stat.mahalle,
+                elektrik: stat.elektrik,
+                su: stat.su,
+                dogalgaz: stat.dogalgaz,
+                activeIncidents: incidentData.activeCount,
+                totalIncidents: incidentData.incidents.length,
+                incidents: incidentData.incidents.map(inc => ({
+                    id: inc._id,
+                    kaynak: inc.Kaynak_Tipi,
+                    tip: inc.Tip,
+                    durum: inc.Durum,
+                    aciklama: inc.Aciklama,
+                    baslangic: inc.Baslangic_Tarihi
+                }))
+            };
+        });
+
+        // 5. Sadece arıza olan ama tüketim verisi olmayan mahalleleri de ekle
+        Object.keys(incidentMap).forEach(mahalle => {
+            if (!consumptionStats.find(s => s.mahalle === mahalle)) {
+                const incidentData = incidentMap[mahalle];
+                result.push({
+                    mahalle: mahalle,
+                    elektrik: { ortalama: 0 },
+                    su: { ortalama: 0 },
+                    dogalgaz: { ortalama: 0 },
+                    activeIncidents: incidentData.activeCount,
+                    totalIncidents: incidentData.incidents.length,
+                    incidents: incidentData.incidents.map(inc => ({
+                        id: inc._id,
+                        kaynak: inc.Kaynak_Tipi,
+                        tip: inc.Tip,
+                        durum: inc.Durum,
+                        aciklama: inc.Aciklama,
+                        baslangic: inc.Baslangic_Tarihi
+                    }))
+                });
+            }
+        });
+
+        // 6. Mahalle adına göre sırala
+        result.sort((a, b) => a.mahalle.localeCompare(b.mahalle));
 
         res.json({ success: true, data: result });
     } catch (error) {
         console.error('Live dashboard hatası:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({ success: false, error: error.message });
     }
 };

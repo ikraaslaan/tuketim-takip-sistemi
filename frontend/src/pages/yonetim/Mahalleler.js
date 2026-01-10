@@ -147,62 +147,26 @@ const MahalleDetayModal = ({ mahalleData: initialData, onClose, onIncidentCreate
       if(!window.confirm(`${currentValues.mahalle} için ${selectedSource} arıza kaydı oluşturulsun mu?`)) return;
       setLoading(true);
       try {
-          // 1. Create incident record in database
+          // Arıza kaydı oluştur (backend zaten email bildirimi gönderiyor)
           const newIncident = {
               Mahalle: currentValues.mahalle,
               Kaynak_Tipi: selectedSource,
               Aciklama: `${currentValues.mahalle} mahallesinde ${selectedSource} arızası (Grafik ekranından manuel)`,
           };
-          await api.post('/incidents/instant', newIncident); 
           
-          // 2. Send email notification to admin
-          const currentValue = selectedSource === 'Elektrik' 
-              ? currentValues.elektrik.ortalama 
-              : selectedSource === 'Su' 
-              ? currentValues.su.ortalama 
-              : currentValues.dogalgaz.ortalama;
+          const response = await api.post('/incidents/instant', newIncident);
           
-          const unit = selectedSource === 'Elektrik' ? 'kWh' : 'm³';
-          
-          const reportData = {
-              mahalle: currentValues.mahalle,
-              kaynak: selectedSource,
-              kullaniciAdi: 'Sistem Yöneticisi',
-              mevcutDeger: currentValue,
-              birim: unit,
-              mesaj: `Anormal tüketim tespit edildi. Mevcut değer: ${currentValue} ${unit}`
-          };
-          
-          await api.post('/support/report', reportData);
-          
-          // 3. Notify all users in the neighborhood
-          try {
-              const notifyResponse = await api.post('/notifications/notify-neighborhood', {
-                  mahalle: currentValues.mahalle,
-                  kaynak: selectedSource,
-                  mesaj: `${currentValues.mahalle} mahallesinde ${selectedSource} arızası bildirilmiştir. Ekiplerimiz haberdardır.`
-              });
-              
-              if (notifyResponse.data.success) {
-                  const notifiedCount = notifyResponse.data.notifiedCount || 0;
-                  if (notifiedCount > 0) {
-                      alert(`✅ Arıza kaydı oluşturuldu!\n📧 ${currentValues.mahalle} mahallesindeki ${notifiedCount} kullanıcıya bilgilendirme e-postası gönderildi.`);
-                  } else {
-                      alert(`✅ Arıza kaydı oluşturuldu!\nℹ️ ${currentValues.mahalle} mahallesinde kayıtlı kullanıcı bulunamadı.`);
-                  }
-              } else {
-                  alert(`✅ Arıza kaydı oluşturuldu!\n⚠️ Kullanıcı bildirimleri gönderilemedi: ${notifyResponse.data.message}`);
-              }
-          } catch (notifyError) {
-              console.error("Kullanıcı bildirimi hatası:", notifyError);
-              // Don't fail the whole operation if notification fails
-              alert(`✅ Arıza kaydı oluşturuldu!\n⚠️ Kullanıcı bildirimleri gönderilemedi: ${notifyError.response?.data?.message || notifyError.message}`);
+          if (response.data && response.data.success) {
+              alert(`✅ Arıza kaydı başarıyla oluşturuldu!\n📧 ${currentValues.mahalle} mahallesindeki abonelere bilgilendirme e-postası gönderildi.`);
+              onIncidentCreated();
+          } else {
+              alert(`✅ Arıza kaydı oluşturuldu!`);
+              onIncidentCreated();
           }
-          
-          onIncidentCreated(); 
       } catch (error) {
-          console.error("Hata:", error);
-          alert("Arıza kaydedilemedi veya e-posta gönderilemedi: " + (error.response?.data?.message || error.message));
+          console.error("Arıza kaydetme hatası:", error);
+          const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message;
+          alert("❌ Arıza kaydedilemedi: " + errorMessage);
       } finally {
           setLoading(false);
       }
