@@ -349,24 +349,96 @@ exports.generateReport = async (req, res) => {
 exports.getStatisticalSummary = async (req, res) => {
     try {
         const { month, year } = req.query;
-        const stats = await getFullStats(month, year);
+        const m = parseInt(month);
+        const y = parseInt(year);
         
-        // Frontend formatına çevir
-        const formatted = stats.map(item => {
+        // Mevcut ay verileri
+        const currentStats = await getFullStats(m, y);
+        
+        // Önceki ay verileri (değişim hesaplaması için)
+        let prevMonth = m - 1;
+        let prevYear = y;
+        if (prevMonth === 0) {
+            prevMonth = 12;
+            prevYear = y - 1;
+        }
+        const previousStats = await getFullStats(prevMonth, prevYear);
+        
+        // Değişim hesaplama fonksiyonu
+        const calculateChange = (current, previous) => {
+            if (!current || current === 0) {
+                return null;
+            }
+            // Önceki ay verisi yoksa veya 0 ise, yeni veri olarak işaretle
+            if (!previous || previous === 0) {
+                return {
+                    percentage: 'Yeni',
+                    increased: false
+                };
+            }
+            const percentage = ((current - previous) / previous) * 100;
+            return {
+                percentage: (percentage > 0 ? '+' : '') + percentage.toFixed(2) + '%',
+                increased: percentage > 0
+            };
+        };
+        
+        // Frontend formatına çevir ve değişim ekle
+        const formatted = currentStats.map(item => {
             const [e_avg, e_max, e_min] = item.Elektrik.split(' / ').map(v => parseFloat(v));
             const [s_avg, s_max, s_min] = item.Su.split(' / ').map(v => parseFloat(v));
             const [d_avg, d_max, d_min] = item.Dogalgaz.split(' / ').map(v => parseFloat(v));
             
+            // Önceki ay verilerini bul
+            const prevItem = previousStats.find(p => p.Mahalle === item.Mahalle);
+            let prev_e_avg = 0, prev_s_avg = 0, prev_d_avg = 0;
+            
+            if (prevItem) {
+                const [pe_avg] = prevItem.Elektrik.split(' / ').map(v => parseFloat(v));
+                const [ps_avg] = prevItem.Su.split(' / ').map(v => parseFloat(v));
+                const [pd_avg] = prevItem.Dogalgaz.split(' / ').map(v => parseFloat(v));
+                prev_e_avg = pe_avg || 0;
+                prev_s_avg = ps_avg || 0;
+                prev_d_avg = pd_avg || 0;
+            }
+            
+            const elektrikChange = calculateChange(e_avg, prev_e_avg);
+            const suChange = calculateChange(s_avg, prev_s_avg);
+            const dogalgazChange = calculateChange(d_avg, prev_d_avg);
+            
+            // Debug log
+            if (item.Mahalle === 'Hilalkent' || item.Mahalle === 'Aksaray') {
+                console.log(`📊 ${item.Mahalle} - Elektrik: ${e_avg} vs ${prev_e_avg} = ${elektrikChange?.percentage || 'null'}`);
+                console.log(`📊 ${item.Mahalle} - Su: ${s_avg} vs ${prev_s_avg} = ${suChange?.percentage || 'null'}`);
+                console.log(`📊 ${item.Mahalle} - Doğalgaz: ${d_avg} vs ${prev_d_avg} = ${dogalgazChange?.percentage || 'null'}`);
+            }
+            
             return {
                 mahalle: item.Mahalle,
-                elektrik: { average: e_avg, peak: e_max, lowest: e_min },
-                su: { average: s_avg, peak: s_max, lowest: s_min },
-                dogalgaz: { average: d_avg, peak: d_max, lowest: d_min }
+                elektrik: { 
+                    average: e_avg, 
+                    peak: e_max, 
+                    lowest: e_min,
+                    change: elektrikChange
+                },
+                su: { 
+                    average: s_avg, 
+                    peak: s_max, 
+                    lowest: s_min,
+                    change: suChange
+                },
+                dogalgaz: { 
+                    average: d_avg, 
+                    peak: d_max, 
+                    lowest: d_min,
+                    change: dogalgazChange
+                }
             };
         });
         
         res.json({ success: true, data: formatted });
     } catch (error) {
+        console.error("İstatistik özeti hatası:", error);
         res.status(500).json({ success: false, error: error.message });
     }
 };

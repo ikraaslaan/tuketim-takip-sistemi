@@ -98,7 +98,7 @@ const IstatistikOzeti = ({ loading, statisticalSummary, selectedMonth, selectedY
                   )}
                 </td>
                 <td className="p-4 text-sm">
-                  {item.elektrik?.change && (
+                  {item.elektrik?.change ? (
                     <span
                       className={`px-2 py-1 rounded ${
                         item.elektrik.change.increased
@@ -106,10 +106,12 @@ const IstatistikOzeti = ({ loading, statisticalSummary, selectedMonth, selectedY
                           : "bg-green-100 text-green-700"
                       }`}
                     >
-                      E: {item.elektrik.change.percentage}%
+                      E: {item.elektrik.change.percentage}
                     </span>
+                  ) : (
+                    <span className="text-gray-400 text-xs">E: -</span>
                   )}
-                  {item.su?.change && (
+                  {item.su?.change ? (
                     <span
                       className={`px-2 py-1 rounded ml-1 ${
                         item.su.change.increased
@@ -117,10 +119,12 @@ const IstatistikOzeti = ({ loading, statisticalSummary, selectedMonth, selectedY
                           : "bg-green-100 text-green-700"
                       }`}
                     >
-                      S: {item.su.change.percentage}%
+                      S: {item.su.change.percentage}
                     </span>
+                  ) : (
+                    <span className="text-gray-400 text-xs ml-1">S: -</span>
                   )}
-                  {item.dogalgaz?.change && (
+                  {item.dogalgaz?.change ? (
                     <span
                       className={`px-2 py-1 rounded ml-1 ${
                         item.dogalgaz.change.increased
@@ -128,8 +132,10 @@ const IstatistikOzeti = ({ loading, statisticalSummary, selectedMonth, selectedY
                           : "bg-green-100 text-green-700"
                       }`}
                     >
-                      D: {item.dogalgaz.change.percentage}%
+                      D: {item.dogalgaz.change.percentage}
                     </span>
+                  ) : (
+                    <span className="text-gray-400 text-xs ml-1">D: -</span>
                   )}
                 </td>
               </tr>
