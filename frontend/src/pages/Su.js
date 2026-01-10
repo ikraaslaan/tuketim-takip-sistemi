@@ -279,19 +279,19 @@ const Su = ({ selectedNeighborhood }) => {
         {selectedNeighborhoodName && summary && chartData.length > 0 && !dataLoading && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
             <div className="bg-white rounded-3xl p-8 shadow-sm border border-blue-100/50 hover:shadow-md transition-shadow duration-300">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">Ortalama Tüketim</h4>
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Günlük Ortalama Tüketim</h4>
               <p className="text-3xl font-bold text-blue-600">{summary.value}</p>
               <p className="text-xs text-gray-500 mt-1">{summary.count} günlük veri</p>
             </div>
             <div className="bg-white rounded-3xl p-8 shadow-sm border border-cyan-100/50 hover:shadow-md transition-shadow duration-300">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">Minimum Tüketim</h4>
+              <h4 className="text-sm font-medium text-gray-700 mb-2">En Düşük Günlük Ort.</h4>
               <p className="text-3xl font-bold text-cyan-600">{summary.min} m³</p>
-              <p className="text-xs text-gray-500 mt-1">En düşük değer</p>
+              <p className="text-xs text-gray-500 mt-1">Minimum değer</p>
             </div>
             <div className="bg-white rounded-3xl p-8 shadow-sm border border-indigo-100/50 hover:shadow-md transition-shadow duration-300">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">Maximum Tüketim</h4>
+              <h4 className="text-sm font-medium text-gray-700 mb-2">En Yüksek Günlük Ort.</h4>
               <p className="text-3xl font-bold text-indigo-600">{summary.max} m³</p>
-              <p className="text-xs text-gray-500 mt-1">En yüksek değer</p>
+              <p className="text-xs text-gray-500 mt-1">Maximum değer</p>
             </div>
           </div>
         )}
@@ -299,7 +299,8 @@ const Su = ({ selectedNeighborhood }) => {
         {/* 5. Veri geldiyse (Grafik) */}
         {selectedNeighborhoodName && chartData.length > 0 && !dataLoading && (
           <div className="bg-white rounded-3xl p-8 shadow-sm border border-blue-100/50 chart-container">
-            <h3 className="text-lg font-bold mb-6 text-gray-800">{selectedNeighborhoodName} Su Tüketim Trendi (m³)</h3>
+            <h3 className="text-lg font-bold mb-6 text-gray-800">{selectedNeighborhoodName} - Günlük Ortalama Su Tüketimi (m³)</h3>
+            <p className="text-xs text-gray-500 mb-4">Her gün için 30 dakikalık ölçümlerin ortalaması</p>
             <div className="w-full h-[320px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
