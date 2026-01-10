@@ -16,13 +16,18 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (username, password) => {
-    // Backend'e istek at
-    const response = await api.post("/auth/login", { username, password });
+    // Backend'e istek at (backend 'email' bekliyor)
+    const response = await api.post("/auth/login", { email: username, password });
     
     // Gelen cevapta token varsa kaydet
     if (response.data.token) {
-      localStorage.setItem("user", JSON.stringify(response.data));
-      setUser(response.data);
+      const userData = {
+        token: response.data.token,
+        user: response.data.user,
+        role: response.data.user.role
+      };
+      localStorage.setItem("user", JSON.stringify(userData));
+      setUser(userData);
     }
     return response.data;
   };
