@@ -13,6 +13,15 @@ router.post('/planned', protect, adminOnly, incidentController.createPlannedInci
 //  Planlı Kesintileri Listeleme
 router.get('/planned', incidentController.getPlannedIncidents);
 
+// Aktif Arızaları Listeleme
+router.get('/active', protect, incidentController.getActiveIncidents);
+
+// Live Dashboard - Mahalle bazlı aktif arızalar
+router.get('/live-dashboard', incidentController.getLiveDashboard);
+
+// Arıza Çözme
+router.put('/:id/coz', protect, adminOnly, incidentController.resolveIncident);
+
 // Eski simülasyon rotamız
 router.post('/simulate', protect, adminOnly, async (req, res) => {
     const incident = await generateRandomIncident();

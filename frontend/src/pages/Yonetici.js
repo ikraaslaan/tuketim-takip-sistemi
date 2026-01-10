@@ -37,25 +37,64 @@ const Yonetici = ({ onLogout }) => {
     try {
       setLoading(true);
       const statsRes = await api.get("/stats/dashboard");
-      const incidentsRes = await api.get("/incidents");
       
-      const data = statsRes.data.data;
-      setAllData(data); // Mahalle listesini doldur
-      setIncidents(incidentsRes.data.data); 
-      
-      if (data.length > 0) {
-        const totalElektrik = data.reduce((sum, item) => sum + (item.elektrik?.ortalama || 0), 0);
-        const totalSu = data.reduce((sum, item) => sum + (item.su?.ortalama || 0), 0);
-        const totalDogalgaz = data.reduce((sum, item) => sum + (item.dogalgaz?.ortalama || 0), 0);
+      // Check if response is successful and has data
+      if (statsRes.data && statsRes.data.success && statsRes.data.data) {
+        const data = statsRes.data.data;
+        setAllData(data); // Mahalle listesini doldur
         
-        setCityAverages({
-          electricity: Math.round(totalElektrik / data.length),
-          water: Math.round(totalSu / data.length),
-          gas: Math.round(totalDogalgaz / data.length)
-        });
+        console.log("📊 Dashboard verisi:", data);
+        console.log("📊 İlk örnek veri:", data[0]);
+        
+        if (data && data.length > 0) {
+          const totalElektrik = data.reduce((sum, item) => {
+            const elektrikValue = item.elektrik?.ortalama || item.elektrik || 0;
+            return sum + Number(elektrikValue);
+          }, 0);
+          
+          const totalSu = data.reduce((sum, item) => {
+            const suValue = item.su?.ortalama || item.su || 0;
+            return sum + Number(suValue);
+          }, 0);
+          
+          const totalDogalgaz = data.reduce((sum, item) => {
+            const dogalgazValue = item.dogalgaz?.ortalama || item.dogalgaz || 0;
+            return sum + Number(dogalgazValue);
+          }, 0);
+          
+          const averages = {
+            electricity: data.length > 0 ? Math.round(totalElektrik / data.length) : 0,
+            water: data.length > 0 ? Math.round(totalSu / data.length) : 0,
+            gas: data.length > 0 ? Math.round(totalDogalgaz / data.length) : 0
+          };
+          
+          console.log("📊 Hesaplanan Ortalamalar:", averages);
+          console.log("📊 Toplamlar:", { totalElektrik, totalSu, totalDogalgaz, count: data.length });
+          
+          setCityAverages(averages);
+        } else {
+          console.warn("⚠️ Dashboard verisi boş veya geçersiz!");
+          setCityAverages({ electricity: 0, water: 0, gas: 0 });
+        }
+      } else {
+        console.error("❌ Dashboard API başarısız:", statsRes.data);
+      }
+      
+      // Fetch incidents separately (optional, for future use)
+      try {
+        const incidentsRes = await api.get("/incidents/active");
+        if (incidentsRes.data && Array.isArray(incidentsRes.data)) {
+          setIncidents(incidentsRes.data);
+        } else if (incidentsRes.data?.data) {
+          setIncidents(incidentsRes.data.data);
+        }
+      } catch (incidentError) {
+        console.error("Arıza verileri yüklenemedi (opsiyonel):", incidentError);
+        setIncidents([]);
       }
     } catch (error) {
       console.error("Veri çekme hatası:", error);
+      console.error("Hata detayı:", error.response?.data);
     } finally {
       setLoading(false);
     }
