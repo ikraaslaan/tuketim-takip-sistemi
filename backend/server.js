@@ -7,6 +7,7 @@ const authRoutes = require('./routes/authRoutes');
 const simulationRoutes = require('./routes/incidentRoutes');  
 const reportRoutes = require('./routes/reportRoutes');
 const statsRoutes = require('./routes/statsRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
 
 
 // Ayarlar
@@ -25,6 +26,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/incidents', simulationRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 
 // Test Endpoint (Scrum Master'a 'sistem hazır' mesajı)
