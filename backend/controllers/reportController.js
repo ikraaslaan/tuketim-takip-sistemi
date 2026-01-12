@@ -240,7 +240,9 @@ exports.generateReport = async (req, res) => {
         const start = new Date(y, m - 1, 1);
         const end = new Date(y, m, 0, 23, 59, 59);
         
-        // Mahalle bazlı veri çek
+        console.log(`📊 Rapor oluşturuluyor: ${mahalle} - ${month}/${year} - ${resource}`);
+        
+        // 1. Seçilen mahalle için veri çek
         const matchStage = {
             Mahalle: mahalle,
             Tarih: { $gte: start, $lte: end }
@@ -264,6 +266,96 @@ exports.generateReport = async (req, res) => {
             }
         ]);
         
+        // 2. TÜM MAHALLELER için veri çek (şehir geneli grafik için)
+        const allNeighborhoodsData = await Reading.aggregate([
+            { $match: { Tarih: { $gte: start, $lte: end } } },
+            {
+                $group: {
+                    _id: "$Mahalle",
+                    e_avg: { $avg: "$Elektrik_Tuketim" },
+                    s_avg: { $avg: "$Su_Tuketim" },
+                    d_avg: { $avg: "$Dogalgaz_Tuketim" }
+                }
+            },
+            { $sort: { _id: 1 } }
+        ]);
+        
+        // 3. ŞEHİR ORTALAMALARI hesapla
+        const cityAverages = {
+            elektrik: 0,
+            su: 0,
+            dogalgaz: 0
+        };
+        
+        if (allNeighborhoodsData.length > 0) {
+            const totalE = allNeighborhoodsData.reduce((sum, item) => sum + (item.e_avg || 0), 0);
+            const totalS = allNeighborhoodsData.reduce((sum, item) => sum + (item.s_avg || 0), 0);
+            const totalD = allNeighborhoodsData.reduce((sum, item) => sum + (item.d_avg || 0), 0);
+            
+            cityAverages.elektrik = totalE / allNeighborhoodsData.length;
+            cityAverages.su = totalS / allNeighborhoodsData.length;
+            cityAverages.dogalgaz = totalD / allNeighborhoodsData.length;
+        }
+        
+        // 4. MEVSİMSEL ANALİZ verilerini çek
+        const seasonalAnalysis = {};
+        const seasonMonths = {
+            'kış': [12, 1, 2],
+            'ilkbahar': [3, 4, 5],
+            'yaz': [6, 7, 8],
+            'sonbahar': [9, 10, 11]
+        };
+        
+        // Mevsimsel verileri hesapla
+        for (const [seasonName, months] of Object.entries(seasonMonths)) {
+            let seasonStart, seasonEnd;
+            
+            if (seasonName === 'kış') {
+                // Kış: Aralık (önceki yıl), Ocak-Şubat (seçili yıl)
+                seasonStart = new Date(y - 1, 11, 1);
+                seasonEnd = new Date(y, 2, 0, 23, 59, 59);
+            } else {
+                seasonStart = new Date(y, months[0] - 1, 1);
+                seasonEnd = new Date(y, months[months.length - 1], 0, 23, 59, 59);
+            }
+            
+            const seasonData = await Reading.aggregate([
+                { $match: { Tarih: { $gte: seasonStart, $lte: seasonEnd } } },
+                {
+                    $group: {
+                        _id: null,
+                        elektrik: { $avg: "$Elektrik_Tuketim" },
+                        su: { $avg: "$Su_Tuketim" },
+                        dogalgaz: { $avg: "$Dogalgaz_Tuketim" }
+                    }
+                }
+            ]);
+            
+            if (seasonData.length > 0) {
+                seasonalAnalysis[seasonName] = {
+                    elektrik: seasonData[0].elektrik || 0,
+                    su: seasonData[0].su || 0,
+                    dogalgaz: seasonData[0].dogalgaz || 0
+                };
+            } else {
+                seasonalAnalysis[seasonName] = {
+                    elektrik: 0,
+                    su: 0,
+                    dogalgaz: 0
+                };
+            }
+        }
+        
+        // 5. GRAFİK VERİLERİ hazırla (tüm mahalleler için)
+        const chartData = allNeighborhoodsData.map(item => ({
+            mahalle: item._id,
+            label: item._id.substring(0, 8), // Kısa etiket
+            value: resource === 'all' ? (item.e_avg || 0) + (item.s_avg || 0) + (item.d_avg || 0) :
+                   resource === 'elektrik' ? (item.e_avg || 0) :
+                   resource === 'su' ? (item.s_avg || 0) :
+                   (item.d_avg || 0)
+        }));
+        
         // Resource filtresine göre verileri filtrele
         let stats = [];
         if (resource === 'all') {
@@ -275,7 +367,6 @@ exports.generateReport = async (req, res) => {
                 Dogalgaz: `${(item.d_avg || 0).toFixed(2)} / ${(item.d_max || 0).toFixed(2)} / ${(item.d_min || 0).toFixed(2)}`
             }));
         } else if (resource === 'elektrik') {
-            // Sadece Elektrik
             stats = results.map(item => ({
                 Mahalle: item._id,
                 Elektrik: `${(item.e_avg || 0).toFixed(2)} / ${(item.e_max || 0).toFixed(2)} / ${(item.e_min || 0).toFixed(2)}`,
@@ -283,7 +374,6 @@ exports.generateReport = async (req, res) => {
                 Dogalgaz: '-'
             }));
         } else if (resource === 'su') {
-            // Sadece Su
             stats = results.map(item => ({
                 Mahalle: item._id,
                 Elektrik: '-',
@@ -291,7 +381,6 @@ exports.generateReport = async (req, res) => {
                 Dogalgaz: '-'
             }));
         } else if (resource === 'dogalgaz') {
-            // Sadece Doğalgaz
             stats = results.map(item => ({
                 Mahalle: item._id,
                 Elektrik: '-',
@@ -303,7 +392,11 @@ exports.generateReport = async (req, res) => {
         const reportData = {
             title: `${mahalle} - ${month}/${year} Raporu`,
             subtitle: resource === 'all' ? 'Tüm Kaynaklar' : (resource === 'elektrik' ? 'Elektrik' : resource === 'su' ? 'Su' : 'Doğalgaz'),
-            tableData: stats
+            tableData: stats,
+            chartData: chartData,
+            chartTitle: 'Şehir Geneli Tüketim Grafiği (Tüm Mahalleler)',
+            cityAverages: cityAverages,
+            seasonalAnalysis: seasonalAnalysis
         };
         
         // Dosya adı formatı: rapor_2025_12_Izzet_Pasa_su (resource bilgisi eklendi, düzenli format)
@@ -334,9 +427,10 @@ exports.generateReport = async (req, res) => {
             .replace(/^_|_$/g, ''); // Başta ve sonda alt çizgi varsa kaldır
         
         const fileName = `rapor_${y}_${String(m).padStart(2, '0')}_${cleanMahalle}${resourceSuffix}`;
-        console.log('📄 PDF oluşturuluyor, dosya adı:', fileName, 'Resource:', resource, 'Mahalle:', mahalle, 'Temizlenmiş:', cleanMahalle);
+        console.log('📄 PDF oluşturuluyor, dosya adı:', fileName, 'Resource:', resource, 'Mahalle:', mahalle);
         
-        const publicUrl = await generateAndUploadReport(reportData, fileName);
+        // Overwrite seçeneği ile PDF oluştur
+        const publicUrl = await generateAndUploadReport(reportData, fileName, { overwrite: true });
         
         console.log('✅ PDF oluşturuldu ve Supabase\'e yüklendi:', publicUrl);
         res.json({ success: true, data: { downloadUrl: publicUrl } });
