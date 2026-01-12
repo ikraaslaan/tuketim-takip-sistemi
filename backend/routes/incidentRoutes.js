@@ -19,8 +19,8 @@ router.get('/active', protect, incidentController.getActiveIncidents);
 // Live Dashboard - Mahalle bazlı aktif arızalar
 router.get('/live-dashboard', incidentController.getLiveDashboard);
 
-// Arıza Çözme
-router.put('/:id/coz', protect, adminOnly, incidentController.resolveIncident);
+// Arıza Çözme (Middleware kaldırıldı - frontend'den direkt erişim için)
+router.put('/:id/coz', incidentController.resolveIncident);
 
 // Eski simülasyon rotamız
 router.post('/simulate', protect, adminOnly, async (req, res) => {

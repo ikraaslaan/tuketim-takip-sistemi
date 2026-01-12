@@ -165,16 +165,63 @@ exports.createPlannedIncident = async (req, res) => {
 // Planlı Kesintileri Listeleme (GET)
 exports.getPlannedIncidents = async (req, res) => {
     try {
+        const now = new Date();
+        console.log(`🕐 Şu anki tarih/saat: ${now.toISOString()}`);
+        
         // Hem 'Planlı' hem 'PLANLI' formatlarını destekle
-        // Tüm planlı kesintileri getir (durum ne olursa olsun)
+        // Çözüldü olmayan planlı kesintileri getir
         const planned = await Incident.find({ 
             $or: [
                 { Tip: 'Planlı' },
                 { Tip: 'PLANLI' }
-            ]
+            ],
+            Durum: { $ne: 'Cozuldu' } // Çözüldü kesintileri getirme
         }).sort({ Baslangic_Tarihi: -1 });
-        res.json(planned);
+        
+        console.log(`📋 Bulunan planlı kesinti sayısı: ${planned.length}`);
+        
+        // Tarih kontrolü yap ve otomatik durum güncellemesi
+        const updatedIncidents = [];
+        for (const incident of planned) {
+            const baslangic = new Date(incident.Baslangic_Tarihi);
+            const bitis = new Date(incident.Bitis_Tarihi);
+            
+            // Tarihleri logla
+            console.log(`📅 Kesinti ID: ${incident._id}, Başlangıç: ${baslangic.toISOString()}, Bitiş: ${bitis.toISOString()}, Mevcut Durum: ${incident.Durum}`);
+            
+            // Eğer başlangıç tarihi geçtiyse ve bitiş tarihi henüz gelmediyse -> Aktif
+            if (now >= baslangic && now <= bitis && incident.Durum !== 'Cozuldu') {
+                if (incident.Durum !== 'Aktif') {
+                    // Durumu otomatik olarak Aktif yap
+                    incident.Durum = 'Aktif';
+                    await incident.save();
+                    console.log(`✅ Planlı kesinti otomatik olarak Aktif yapıldı: ${incident._id}, Mahalle: ${incident.Mahalle}`);
+                }
+            }
+            // Eğer bitiş tarihi geçtiyse ve çözülmemişse -> Pasif (geçmiş)
+            else if (now > bitis && incident.Durum !== 'Cozuldu') {
+                if (incident.Durum === 'Aktif') {
+                    // Bitiş tarihi geçti, Pasif yap
+                    incident.Durum = 'Pasif';
+                    await incident.save();
+                    console.log(`ℹ️ Planlı kesinti bitiş tarihi geçti, Pasif yapıldı: ${incident._id}`);
+                }
+            }
+            // Eğer başlangıç tarihi henüz gelmediyse ve durum Aktif ise -> Pasif yap
+            else if (now < baslangic && incident.Durum === 'Aktif') {
+                incident.Durum = 'Pasif';
+                await incident.save();
+                console.log(`ℹ️ Planlı kesinti henüz başlamadı, Pasif yapıldı: ${incident._id}`);
+            }
+            
+            // Güncellenmiş durumu almak için tekrar fetch et
+            const updatedIncident = await Incident.findById(incident._id);
+            updatedIncidents.push(updatedIncident);
+        }
+        
+        res.json(updatedIncidents);
     } catch (error) {
+        console.error('❌ Planlı kesintiler getirme hatası:', error);
         res.status(500).json({ error: error.message });
     }
 };
@@ -197,16 +244,23 @@ exports.getActiveIncidents = async (req, res) => {
 exports.resolveIncident = async (req, res) => {
     try {
         const { id } = req.params;
+        console.log('🔧 Arıza çözülüyor, ID:', id);
+        
         const incident = await Incident.findByIdAndUpdate(
             id,
-            { Durum: 'Pasif' }, // Çözüldü yerine Pasif olarak işaretle
+            { Durum: 'Cozuldu' }, // Çözüldü olarak işaretle
             { new: true }
         );
+        
         if (!incident) {
+            console.log('❌ Arıza bulunamadı:', id);
             return res.status(404).json({ error: 'Arıza bulunamadı' });
         }
+        
+        console.log('✅ Arıza çözüldü:', incident._id, 'Yeni durum:', incident.Durum);
         res.json({ success: true, data: incident });
     } catch (error) {
+        console.error('❌ Arıza çözme hatası:', error);
         res.status(500).json({ error: error.message });
     }
 };

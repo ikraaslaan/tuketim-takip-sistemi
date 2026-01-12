@@ -20,6 +20,13 @@ const KesintiOlustur = () => {
   useEffect(() => {
     fetchNeighborhoods();
     fetchPlannedOutages();
+    
+    // Her 30 saniyede bir planlı kesintileri yenile (otomatik durum güncellemesi için)
+    const interval = setInterval(() => {
+      fetchPlannedOutages();
+    }, 30000); // 30 saniye
+    
+    return () => clearInterval(interval);
   }, []);
 
   const fetchNeighborhoods = async () => {
@@ -38,11 +45,21 @@ const KesintiOlustur = () => {
     try {
       setLoading(true);
       const response = await api.get("/incidents/planned");
+      let data = [];
+      
       if (response.data && Array.isArray(response.data)) {
-        setPlannedOutages(response.data);
+        data = response.data;
       } else if (response.data?.data) {
-        setPlannedOutages(response.data.data);
+        data = response.data.data;
       }
+      
+      // Çözüldü kesintileri filtrele (ekstra güvenlik için)
+      const filteredData = data.filter(outage => 
+        outage.Durum !== 'Cozuldu' && 
+        outage.Durum !== 'COZULDU'
+      );
+      
+      setPlannedOutages(filteredData);
     } catch (error) {
       console.error("Planlı kesintiler yüklenemedi:", error);
       setPlannedOutages([]);
@@ -53,13 +70,28 @@ const KesintiOlustur = () => {
 
   // Planlı kesintiyi çözüldü olarak işaretle
   const handleResolveOutage = async (id) => {
+    if (!id) {
+      alert("❌ Kesinti ID'si bulunamadı.");
+      return;
+    }
+    
     if (!window.confirm("Bu planlı kesintiyi çözüldü olarak işaretlemek istiyor musunuz?")) return;
+    
     try {
-      await api.put(`/incidents/${id}/coz`);
-      alert("✅ Planlı kesinti çözüldü olarak işaretlendi.");
-      fetchPlannedOutages();
+      console.log('🔧 Kesinti çözülüyor, ID:', id);
+      const response = await api.put(`/incidents/${id}/coz`);
+      
+      if (response.data && response.data.success) {
+        alert("✅ Planlı kesinti çözüldü olarak işaretlendi.");
+        // Listeyi hemen yenile
+        await fetchPlannedOutages();
+      } else {
+        alert("❌ İşlem başarısız: Beklenmeyen yanıt");
+      }
     } catch (error) {
-      alert("❌ İşlem başarısız: " + (error.response?.data?.message || error.response?.data?.error || "Bilinmeyen hata"));
+      console.error('❌ Kesinti çözme hatası:', error);
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || "Bilinmeyen hata";
+      alert("❌ İşlem başarısız: " + errorMessage);
     }
   };
 
@@ -294,6 +326,7 @@ const KesintiOlustur = () => {
                       </div>
                     </div>
                     {/* Çözüldü butonu - Sadece çözülmemiş kesintiler için göster */}
+                    {/* Planlı kesintiler varsayılan olarak 'Pasif' durumunda, bu yüzden sadece 'Cozuldu' kontrolü yapıyoruz */}
                     {outage.Durum !== 'Cozuldu' && 
                      outage.Durum !== 'COZULDU' && (
                       <button
