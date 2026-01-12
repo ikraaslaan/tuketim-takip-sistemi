@@ -64,134 +64,31 @@ exports.generateAndUploadReport = async (data, reportName, options = {}) => {
                     
                     console.log("✅ Supabase bucket kontrolü başarılı");
                     
+                    // Her zaman UUID ile yeni dosya oluştur (overwrite yok)
                     const fileName = `reports/${reportName}-${crypto.randomUUID()}.pdf`;
+                    console.log(`📤 Dosya yükleniyor: ${fileName}`);
+                    
+                    const { data: uploadData, error: uploadError } = await supabase.storage
+                        .from('analiz-raporlari')
+                        .upload(fileName, pdfData, { contentType: 'application/pdf' });
 
-                    // Overwrite desteği: Aynı isimde dosya varsa sil ve yeniden yükle
-                    if (options.overwrite) {
-                        // Dosya adını UUID olmadan oluştur
-                        const baseFileName = reportName;
-                        const fileNameWithoutUUID = `reports/${baseFileName}.pdf`;
-                        
-                        console.log(`🔄 Overwrite modu: ${fileNameWithoutUUID}`);
-                        
-                        // Önce mevcut dosyayı kontrol et ve sil
-                        try {
-                            const { data: existingFiles, error: listError } = await supabase.storage
-                                .from('analiz-raporlari')
-                                .list('reports');
-                            
-                            if (listError) {
-                                console.warn("⚠️ Dosya listesi alınamadı (devam ediliyor):", listError.message);
-                            } else if (existingFiles && existingFiles.length > 0) {
-                                // Aynı isimde dosyaları bul (baseFileName ile başlayan)
-                                const filesToDelete = existingFiles
-                                    .filter(f => {
-                                        const nameWithoutExt = f.name.replace('.pdf', '');
-                                        return nameWithoutExt === baseFileName || nameWithoutExt.startsWith(baseFileName + '-');
-                                    })
-                                    .map(f => `reports/${f.name}`);
-                                
-                                if (filesToDelete.length > 0) {
-                                    console.log(`🗑️ Silinecek dosyalar: ${filesToDelete.join(', ')}`);
-                                    const { error: deleteError } = await supabase.storage
-                                        .from('analiz-raporlari')
-                                        .remove(filesToDelete);
-                                    
-                                    if (deleteError) {
-                                        console.warn("⚠️ Dosya silme hatası (devam ediliyor):", deleteError.message);
-                                    } else {
-                                        console.log(`✅ Eski dosya(lar) silindi: ${filesToDelete.length} dosya`);
-                                    }
-                                }
-                            }
-                        } catch (deleteError) {
-                            console.warn("⚠️ Eski dosya silinirken hata (devam ediliyor):", deleteError.message);
-                        }
-                        
-                        // Yeni dosyayı yükle (upsert mantığı - Supabase otomatik overwrite yapar)
-                        console.log(`📤 Dosya yükleniyor: ${fileNameWithoutUUID}`);
-                        const { data: uploadData, error: uploadError } = await supabase.storage
-                            .from('analiz-raporlari')
-                            .upload(fileNameWithoutUUID, pdfData, { 
-                                contentType: 'application/pdf',
-                                upsert: true // Overwrite desteği
-                            });
-
-                        if (uploadError) {
-                            console.error("❌ Supabase Yükleme Hatası:", uploadError);
-                            console.error("Hata detayları:", JSON.stringify(uploadError, null, 2));
-                            
-                            // Eğer upsert çalışmazsa, manuel sil ve tekrar yükle
-                            if (uploadError.message?.includes('already exists') || uploadError.message?.includes('duplicate') || uploadError.statusCode === 409) {
-                                console.log("🔄 Dosya zaten var, manuel silme ve yeniden yükleme deneniyor...");
-                                try {
-                                    const { error: removeError } = await supabase.storage
-                                        .from('analiz-raporlari')
-                                        .remove([fileNameWithoutUUID]);
-                                    
-                                    if (removeError) {
-                                        console.warn("⚠️ Manuel silme hatası:", removeError.message);
-                                    }
-                                    
-                                    const { data: retryUpload, error: retryError } = await supabase.storage
-                                        .from('analiz-raporlari')
-                                        .upload(fileNameWithoutUUID, pdfData, { 
-                                            contentType: 'application/pdf'
-                                        });
-                                    
-                                    if (retryError) {
-                                        console.error("❌ Supabase Yükleme Hatası (retry):", retryError);
-                                        return reject(new Error(`Supabase yükleme hatası: ${retryError.message}`));
-                                    }
-                                    
-                                    console.log("✅ Retry başarılı");
-                                } catch (retryErr) {
-                                    console.error("❌ Retry hatası:", retryErr);
-                                    return reject(new Error(`Supabase yükleme hatası: ${uploadError.message}`));
-                                }
-                            } else {
-                                return reject(new Error(`Supabase yükleme hatası: ${uploadError.message}`));
-                            }
-                        } else {
-                            console.log("✅ Dosya başarıyla yüklendi (overwrite)");
-                        }
-
-                        const { data: urlData } = supabase.storage
-                            .from('analiz-raporlari')
-                            .getPublicUrl(fileNameWithoutUUID);
-
-                        if (!urlData || !urlData.publicUrl) {
-                            return reject(new Error("Public URL alınamadı"));
-                        }
-
-                        console.log("✅ Yükleme başarılı (overwrite):", urlData.publicUrl);
-                        console.log("📁 Dosya adı:", fileNameWithoutUUID);
-                        resolve(urlData.publicUrl);
-                    } else {
-                        // Normal yükleme (UUID ile)
-                        console.log(`📤 Dosya yükleniyor: ${fileName}`);
-                        const { data: uploadData, error: uploadError } = await supabase.storage
-                            .from('analiz-raporlari')
-                            .upload(fileName, pdfData, { contentType: 'application/pdf' });
-
-                        if (uploadError) {
-                            console.error("❌ Supabase Yükleme Hatası:", uploadError);
-                            console.error("Hata detayları:", JSON.stringify(uploadError, null, 2));
-                            return reject(new Error(`Supabase yükleme hatası: ${uploadError.message}`));
-                        }
-
-                        const { data: urlData } = supabase.storage
-                            .from('analiz-raporlari')
-                            .getPublicUrl(fileName);
-
-                        if (!urlData || !urlData.publicUrl) {
-                            return reject(new Error("Public URL alınamadı"));
-                        }
-
-                        console.log("✅ Yükleme başarılı:", urlData.publicUrl);
-                        console.log("📁 Dosya adı:", fileName);
-                        resolve(urlData.publicUrl);
+                    if (uploadError) {
+                        console.error("❌ Supabase Yükleme Hatası:", uploadError);
+                        console.error("Hata detayları:", JSON.stringify(uploadError, null, 2));
+                        return reject(new Error(`Supabase yükleme hatası: ${uploadError.message}`));
                     }
+
+                    const { data: urlData } = supabase.storage
+                        .from('analiz-raporlari')
+                        .getPublicUrl(fileName);
+
+                    if (!urlData || !urlData.publicUrl) {
+                        return reject(new Error("Public URL alınamadı"));
+                    }
+
+                    console.log("✅ Yükleme başarılı:", urlData.publicUrl);
+                    console.log("📁 Dosya adı:", fileName);
+                    resolve(urlData.publicUrl);
                 } catch (err) {
                     console.error("❌ PDF yükleme genel hatası:", err);
                     reject(err);
@@ -495,10 +392,10 @@ exports.generateAndUploadReport = async (data, reportName, options = {}) => {
                 currentY += avgBoxHeight + 30;
             }
             
-            // Mevsimsel Analiz Bölümü
+            // Mevsimsel Analiz Bölümü (Grafik + Metin)
             if (data.seasonalAnalysis && Object.keys(data.seasonalAnalysis).length > 0) {
                 // Yeni sayfa gerekirse ekle
-                if (currentY > pageHeight - margin - 200) {
+                if (currentY > pageHeight - margin - 250) {
                     doc.addPage();
                     currentY = margin + 20;
                 }
@@ -521,8 +418,166 @@ exports.generateAndUploadReport = async (data, reportName, options = {}) => {
                     data: data.seasonalAnalysis[key]
                 }));
                 
+                // MEVSİMSEL GRAFİK (Bar Chart) - Düzeltilmiş versiyon
+                const chartWidth = contentWidth;
+                const chartHeight = 200;
+                const chartX = margin;
+                const chartY = currentY;
+                
+                // Grafik arka planı
+                doc.rect(chartX, chartY, chartWidth, chartHeight)
+                   .fillColor('#f9fafb')
+                   .fill()
+                   .strokeColor('#10b981')
+                   .lineWidth(2)
+                   .stroke();
+                
+                // Grafik başlığı
+                doc.fontSize(14)
+                   .fillColor('#059669')
+                   .font('TurkishFont')
+                   .text('Mevsimsel Ortalama Tüketim Trendi', chartX + 10, chartY + 10, { width: chartWidth - 20, align: 'center' });
+                
+                // Kaynak bazlı grafikler (3 kaynak için 3 bar chart)
+                const resourceColors = {
+                    elektrik: '#f59e0b',
+                    su: '#3b82f6',
+                    dogalgaz: '#ef4444'
+                };
+                
+                const resources = ['elektrik', 'su', 'dogalgaz'];
+                const chartInnerHeight = chartHeight - 80; // Daha fazla alan
+                const chartInnerY = chartY + 40;
+                const chartInnerWidth = chartWidth - 100; // Y ekseni için alan bırak
+                const chartInnerX = chartX + 60;
+                
+                // Y ekseni etiketleri için max değeri bul
+                const maxValue = Math.max(
+                    ...seasons.map(s => Math.max(
+                        s.data.elektrik || 0,
+                        s.data.su || 0,
+                        s.data.dogalgaz || 0
+                    ))
+                );
+                const minValue = 0;
+                const range = maxValue - minValue || 1;
+                
+                // Y ekseni çizgisi
+                doc.strokeColor('#d1d5db')
+                   .lineWidth(1)
+                   .moveTo(chartInnerX, chartInnerY)
+                   .lineTo(chartInnerX, chartInnerY + chartInnerHeight)
+                   .stroke();
+                
+                // Y ekseni etiketleri
+                doc.fontSize(9)
+                   .fillColor('#6b7280')
+                   .font('TurkishFont');
+                for (let i = 0; i <= 5; i++) {
+                    const value = maxValue - (range * i / 5);
+                    const y = chartInnerY + (chartInnerHeight * i / 5);
+                    // Y ekseni çizgisi
+                    doc.strokeColor('#e5e7eb')
+                       .lineWidth(0.5)
+                       .moveTo(chartInnerX, y)
+                       .lineTo(chartInnerX + chartInnerWidth, y)
+                       .stroke();
+                    // Etiket
+                    doc.text(value.toFixed(0), chartInnerX - 50, y - 5, { width: 45, align: 'right' });
+                }
+                
+                // Bar chart çizimi - Düzeltilmiş hesaplama
+                const seasonGroupWidth = chartInnerWidth / seasons.length; // Her mevsim grubu için genişlik
+                const barWidth = (seasonGroupWidth - 20) / 3; // Her bar için genişlik (3 bar + boşluklar)
+                const barSpacing = 5; // Bar'lar arası boşluk
+                
+                seasons.forEach((season, seasonIdx) => {
+                    const groupStartX = chartInnerX + (seasonIdx * seasonGroupWidth) + 10;
+                    
+                    resources.forEach((resource, resIdx) => {
+                        const value = season.data[resource] || 0;
+                        const normalizedValue = range > 0 ? (value - minValue) / range : 0;
+                        const barHeight = normalizedValue * chartInnerHeight;
+                        const barX = groupStartX + resIdx * (barWidth + barSpacing);
+                        const barY = chartInnerY + chartInnerHeight - barHeight;
+                        
+                        // Bar çiz (daha kalın ve görünür)
+                        if (barHeight > 0) {
+                            doc.rect(barX, barY, barWidth, barHeight)
+                               .fillColor(resourceColors[resource])
+                               .fill()
+                               .strokeColor('#ffffff')
+                               .lineWidth(1)
+                               .stroke();
+                            
+                            // Değer etiketi (bar üzerinde veya içinde)
+                            if (barHeight > 20) {
+                                doc.fontSize(8)
+                                   .fillColor('#1f2937')
+                                   .font('TurkishFont')
+                                   .text(value.toFixed(0), barX, barY - 15, { width: barWidth, align: 'center' });
+                            } else if (barHeight > 5) {
+                                // Bar içinde küçük yazı
+                                doc.fontSize(7)
+                                   .fillColor('#ffffff')
+                                   .font('TurkishFont')
+                                   .text(value.toFixed(0), barX, barY + barHeight / 2 - 5, { width: barWidth, align: 'center' });
+                            }
+                        }
+                    });
+                    
+                    // Mevsim etiketi (X ekseni altında)
+                    doc.fontSize(9)
+                       .fillColor('#059669')
+                       .font('TurkishFont')
+                       .text(season.name, groupStartX, chartInnerY + chartInnerHeight + 10, { width: seasonGroupWidth - 20, align: 'center' });
+                });
+                
+                // X ekseni çizgisi
+                doc.strokeColor('#d1d5db')
+                   .lineWidth(1)
+                   .moveTo(chartInnerX, chartInnerY + chartInnerHeight)
+                   .lineTo(chartInnerX + chartInnerWidth, chartInnerY + chartInnerHeight)
+                   .stroke();
+                
+                // Legend (Açıklama) - Ortalanmış ve daha aşağıda
+                const legendY = chartY + chartHeight + 12; // Grafiğin altında, 12px boşluk
+                const legendTotalWidth = 250; // Toplam legend genişliği
+                const legendStartX = chartX + (chartWidth - legendTotalWidth) / 2; // Ortalanmış
+                
+                doc.fontSize(9)
+                   .fillColor('#1f2937')
+                   .font('TurkishFont')
+                   .text('Açıklama:', legendStartX, legendY);
+                
+                let legendX = legendStartX + 60;
+                const legendItemSpacing = 75; // Her item arası boşluk
+                
+                resources.forEach((resource, idx) => {
+                    // Renk kutusu
+                    doc.rect(legendX, legendY, 12, 12)
+                       .fillColor(resourceColors[resource])
+                       .fill()
+                       .strokeColor('#ffffff')
+                       .lineWidth(0.5)
+                       .stroke();
+                    
+                    // Kaynak adı
+                    const resourceName = resource === 'elektrik' ? 'Elektrik' : 
+                                        resource === 'su' ? 'Su' : 'Doğalgaz';
+                    doc.fontSize(9)
+                       .fillColor('#1f2937')
+                       .font('TurkishFont')
+                       .text(resourceName, legendX + 18, legendY + 2);
+                    
+                    legendX += legendItemSpacing;
+                });
+                
+                currentY += chartHeight + 40; // Legend için ekstra alan
+                
+                // Mevsim detay kutuları (metin)
                 const seasonWidth = (contentWidth - 30) / 4;
-                const seasonHeight = 120;
+                const seasonHeight = 100;
                 
                 seasons.forEach((season, idx) => {
                     const seasonX = margin + idx * (seasonWidth + 10);
@@ -543,26 +598,58 @@ exports.generateAndUploadReport = async (data, reportName, options = {}) => {
                        .stroke();
                     
                     // Mevsim adı
-                    doc.fontSize(14)
+                    doc.fontSize(12)
                        .fillColor('#059669')
                        .text(season.name, seasonX + 5, currentY + 5, { width: seasonWidth - 10, align: 'center' });
                     
                     let textY = currentY + 25;
-                    doc.fontSize(9);
+                    doc.fontSize(8);
                     
+                    // Elektrik - Renk kutusu + yazı
                     if (seasonData.elektrik !== undefined) {
+                        // Renk kutusu
+                        doc.rect(seasonX + 5, textY, 8, 8)
+                           .fillColor('#f59e0b')
+                           .fill()
+                           .strokeColor('#ffffff')
+                           .lineWidth(0.5)
+                           .stroke();
+                        // Yazı
                         doc.fillColor('#92400e')
-                           .text(`Elektrik: ${seasonData.elektrik.toFixed(2)} kWh`, seasonX + 5, textY, { width: seasonWidth - 10 });
+                           .font('TurkishFont')
+                           .text(`Elektrik: ${seasonData.elektrik.toFixed(2)} kWh`, seasonX + 16, textY + 1, { width: seasonWidth - 20 });
                         textY += 20;
                     }
+                    
+                    // Su - Renk kutusu + yazı
                     if (seasonData.su !== undefined) {
+                        // Renk kutusu
+                        doc.rect(seasonX + 5, textY, 8, 8)
+                           .fillColor('#3b82f6')
+                           .fill()
+                           .strokeColor('#ffffff')
+                           .lineWidth(0.5)
+                           .stroke();
+                        // Yazı
                         doc.fillColor('#1e40af')
-                           .text(`Su: ${seasonData.su.toFixed(2)} m³`, seasonX + 5, textY, { width: seasonWidth - 10 });
+                           .font('TurkishFont')
+                           .text(`Su: ${seasonData.su.toFixed(2)} m³`, seasonX + 16, textY + 1, { width: seasonWidth - 20 });
                         textY += 20;
                     }
+                    
+                    // Doğalgaz - Renk kutusu + yazı
                     if (seasonData.dogalgaz !== undefined) {
+                        // Renk kutusu
+                        doc.rect(seasonX + 5, textY, 8, 8)
+                           .fillColor('#ef4444')
+                           .fill()
+                           .strokeColor('#ffffff')
+                           .lineWidth(0.5)
+                           .stroke();
+                        // Yazı
                         doc.fillColor('#9a3412')
-                           .text(`Doğalgaz: ${seasonData.dogalgaz.toFixed(2)} m³`, seasonX + 5, textY, { width: seasonWidth - 10 });
+                           .font('TurkishFont')
+                           .text(`Doğalgaz: ${seasonData.dogalgaz.toFixed(2)} m³`, seasonX + 16, textY + 1, { width: seasonWidth - 20 });
                     }
                 });
                 

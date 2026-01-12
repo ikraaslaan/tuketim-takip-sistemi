@@ -96,16 +96,6 @@ const AnalitikModuller = () => {
     fetchNeighborhoods();
   }, []);
 
-  // Handle document deletion - refresh list instead of local state
-  const handleDeleteDocument = (docId) => {
-    // Documents are managed by useDocuments hook, just refresh
-      fetchDocuments();
-        setSuccessMessage("✅ Rapor başarıyla silindi!");
-        setShowSuccessToast(true);
-        setTimeout(() => {
-          setShowSuccessToast(false);
-        }, 3000);
-  };
 
   // Handle report generation
   const handleGenerateReport = () => {
@@ -208,7 +198,6 @@ const AnalitikModuller = () => {
             <BelgelerListesi
               documents={documents}
               loading={documentsLoading}
-              onDelete={handleDeleteDocument}
               onRefresh={fetchDocuments}
             />
           </div>

@@ -31,6 +31,15 @@ export const useReportGeneration = (fetchDocuments) => {
         timeout: 120000
       });
 
+      // Eğer aynı rapor zaten varsa hata mesajı göster
+      if (response.data && !response.data.success) {
+        setGeneratingReport(false);
+        setReportProgress("");
+        const errorMsg = response.data.message || "Bu rapor zaten mevcut!";
+        alert("⚠️ " + errorMsg);
+        return;
+      }
+
       setReportProgress("PDF oluşturuluyor...");
 
       if (response.data && response.data.success) {
@@ -98,7 +107,10 @@ export const useReportGeneration = (fetchDocuments) => {
       console.error("Rapor oluşturma hatası:", error);
       setReportProgress("❌ Hata oluştu");
       
-      if (error.code === 'ECONNABORTED') {
+      // 400 hatası (aynı rapor zaten mevcut)
+      if (error.response?.status === 400 && error.response?.data?.message) {
+        alert("⚠️ " + error.response.data.message);
+      } else if (error.code === 'ECONNABORTED') {
         alert("Rapor oluşturma işlemi zaman aşımına uğradı. Chunking ile optimize edilmiş işlem 2 dakika sürebilir. Lütfen tekrar deneyin.");
       } else if (error.response?.data?.message) {
         if (error.response.data.message.includes('Supabase not configured')) {

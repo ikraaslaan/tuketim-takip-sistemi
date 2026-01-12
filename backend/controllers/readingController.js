@@ -235,6 +235,10 @@ exports.getTimeSeriesAnalysis = async (req, res) => {
         const { mahalle, yil } = req.query;
         const selectedYear = yil ? parseInt(yil) : new Date().getFullYear();
         
+        if (!mahalle) {
+            return res.status(400).json({ error: 'Mahalle parametresi gereklidir' });
+        }
+        
         const readings = await Reading.aggregate([
             { 
                 $match: { 
@@ -279,7 +283,9 @@ exports.getCorrelation = async (req, res) => {
             return res.status(400).json({ error: 'Mahalle parametresi gereklidir' });
         }
         
-        let matchStage = { Mahalle: mahalle };
+        let matchStage = {
+            Mahalle: mahalle
+        };
 
         // Mevsimsel veya Aylık Filtreleme
         if (mevsim) {

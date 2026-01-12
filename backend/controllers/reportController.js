@@ -128,100 +128,114 @@ exports.generateMonthlyStatsReport = async (req, res) => {
 // Frontend için uyumlu endpoint'ler
 exports.listDocuments = async (req, res) => {
     try {
+        // Cache'i bypass etmek için timestamp ekle
         const { data, error } = await supabase.storage
             .from('analiz-raporlari')
-            .list('reports', { sort: { column: 'created_at', order: 'desc' } });
+            .list('reports', { 
+                sort: { column: 'created_at', order: 'desc' },
+                limit: 1000 // Tüm dosyaları getir
+            });
         
-        if (error) throw error;
+        if (error) {
+            console.error("Supabase list hatası:", error);
+            throw error;
+        }
+        
+        console.log(`📋 Supabase'den ${data?.length || 0} dosya bulundu`);
         
         // Frontend formatına çevir - Supabase'den gelen dosyaları işle
-        const documents = (data || []).map((file, index) => {
-            const fileName = file.name || '';
-            // Dosya adı formatı: rapor_2025_12_Aksaray-UUID.pdf veya Istatistik-1-2025-UUID.pdf
-            const nameWithoutExt = fileName.replace('.pdf', '');
-            const parts = nameWithoutExt.split('_');
-            
-            let neighborhood_name = 'Bilinmeyen';
-            let month = '';
-            let year = '';
-            
-            // Format: rapor_2025_12_Aksaray_su-UUID veya rapor_2025_12_Aksaray-UUID
-            if (parts[0] === 'rapor' && parts.length >= 4) {
-                year = parts[1] || '';
-                month = parts[2] || '';
-                
-                // Son kısım mahalle adı + resource (varsa) + UUID olabilir
-                // Örnek: "Aksaray_su-UUID" veya "Aksaray-UUID"
-                let lastPart = parts.slice(3).join('_'); // Tüm kalan kısımları birleştir
-                
-                // UUID'yi kaldır (son tire'den sonrası, UUID formatı: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
-                const uuidPattern = /-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-                lastPart = lastPart.replace(uuidPattern, '');
-                
-                // Resource bilgisini ayır (su, elektrik, dogalgaz)
-                let resourcePart = '';
-                if (lastPart.endsWith('_su')) {
-                    resourcePart = 'su';
-                    lastPart = lastPart.replace('_su', '');
-                } else if (lastPart.endsWith('_elektrik')) {
-                    resourcePart = 'elektrik';
-                    lastPart = lastPart.replace('_elektrik', '');
-                } else if (lastPart.endsWith('_dogalgaz')) {
-                    resourcePart = 'dogalgaz';
-                    lastPart = lastPart.replace('_dogalgaz', '');
-                }
-                
-                // Mahalle adını düzenle (alt çizgileri boşlukla değiştir, baş harfleri büyüt)
-                // Örnek: "Izzet_Pasa" -> "İzzet Paşa" (Türkçe karakterleri geri getir)
-                const englishToTurkish = {
-                    'c': 'ç', 'C': 'Ç',
-                    'g': 'ğ', 'G': 'Ğ',
-                    'i': 'ı', 'I': 'İ',
-                    'o': 'ö', 'O': 'Ö',
-                    's': 'ş', 'S': 'Ş',
-                    'u': 'ü', 'U': 'Ü'
-                };
-                
-                // Basit bir yaklaşım: Alt çizgileri boşlukla değiştir ve baş harfleri büyüt
-                // Not: Tam Türkçe karakter dönüşümü için orijinal mahalle listesine bakmak gerekir
-                neighborhood_name = lastPart
-                    .replace(/_/g, ' ') // Alt çizgileri boşlukla değiştir
-                    .split(' ')
-                    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-                    .join(' ')
-                    .trim() || 'Bilinmeyen';
-            }
-            // Format: Istatistik-1-2025-UUID (eski format)
-            else if (nameWithoutExt.startsWith('Istatistik-')) {
-                const istParts = nameWithoutExt.split('-');
-                if (istParts.length >= 3) {
-                    month = istParts[1] || '';
-                    year = istParts[2] || '';
-                    neighborhood_name = 'Tüm Mahalleler';
-                }
-            }
-            
-            // Public URL oluştur
-            const { data: urlData } = supabase.storage
-                .from('analiz-raporlari')
-                .getPublicUrl(`reports/${fileName}`);
-            
-            return {
-                id: file.name, // Dosya adını ID olarak kullan (silme için gerekli)
-                name: file.name, // Dosya adını da ekle
-                neighborhood_name: neighborhood_name,
-                month: month,
-                year: year,
-                resource: fileName.includes('_elektrik') || fileName.includes('-elektrik') ? 'elektrik' : 
-                         fileName.includes('_su') || fileName.includes('-su') ? 'su' : 
-                         fileName.includes('_dogalgaz') || fileName.includes('-dogalgaz') ? 'dogalgaz' : 'all',
-                download_url: urlData?.publicUrl || null,
-                report_date: file.created_at || file.updated_at || new Date().toISOString(),
-                created_at: file.created_at || new Date().toISOString()
-            };
-        });
+        // Dosya varlığını kontrol et ve sadece mevcut dosyaları döndür
+        const validDocuments = [];
         
-        res.json({ success: true, data: documents });
+        for (const file of (data || [])) {
+            try {
+                const fileName = file.name || '';
+                
+                // Dosyanın gerçekten var olup olmadığını kontrol et (URL oluşturarak)
+                const { data: urlData, error: urlError } = supabase.storage
+                    .from('analiz-raporlari')
+                    .getPublicUrl(`reports/${fileName}`);
+                
+                // Eğer URL oluşturulamazsa veya hata varsa, dosya muhtemelen silinmiş
+                if (urlError || !urlData || !urlData.publicUrl) {
+                    console.log(`⚠️ Dosya URL'si oluşturulamadı (silinmiş olabilir): ${fileName}`);
+                    continue;
+                }
+                
+                // Dosya adı formatı: rapor_2025_12_Aksaray-UUID.pdf veya Istatistik-1-2025-UUID.pdf
+                const nameWithoutExt = fileName.replace('.pdf', '');
+                const parts = nameWithoutExt.split('_');
+                
+                let neighborhood_name = 'Bilinmeyen';
+                let month = '';
+                let year = '';
+                
+                // Format: rapor_2025_12_Aksaray_su-UUID veya rapor_2025_12_Aksaray-UUID
+                if (parts[0] === 'rapor' && parts.length >= 4) {
+                    year = parts[1] || '';
+                    month = parts[2] || '';
+                    
+                    // Son kısım mahalle adı + resource (varsa) + UUID olabilir
+                    // Örnek: "Aksaray_su-UUID" veya "Aksaray-UUID"
+                    let lastPart = parts.slice(3).join('_'); // Tüm kalan kısımları birleştir
+                    
+                    // UUID'yi kaldır (son tire'den sonrası, UUID formatı: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+                    const uuidPattern = /-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                    lastPart = lastPart.replace(uuidPattern, '');
+                    
+                    // Resource bilgisini ayır (su, elektrik, dogalgaz)
+                    let resourcePart = '';
+                    if (lastPart.endsWith('_su')) {
+                        resourcePart = 'su';
+                        lastPart = lastPart.replace('_su', '');
+                    } else if (lastPart.endsWith('_elektrik')) {
+                        resourcePart = 'elektrik';
+                        lastPart = lastPart.replace('_elektrik', '');
+                    } else if (lastPart.endsWith('_dogalgaz')) {
+                        resourcePart = 'dogalgaz';
+                        lastPart = lastPart.replace('_dogalgaz', '');
+                    }
+                    
+                    // Mahalle adını düzenle (alt çizgileri boşlukla değiştir, baş harfleri büyüt)
+                    neighborhood_name = lastPart
+                        .replace(/_/g, ' ') // Alt çizgileri boşlukla değiştir
+                        .split(' ')
+                        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                        .join(' ')
+                        .trim() || 'Bilinmeyen';
+                }
+                // Format: Istatistik-1-2025-UUID (eski format)
+                else if (nameWithoutExt.startsWith('Istatistik-')) {
+                    const istParts = nameWithoutExt.split('-');
+                    if (istParts.length >= 3) {
+                        month = istParts[1] || '';
+                        year = istParts[2] || '';
+                        neighborhood_name = 'Tüm Mahalleler';
+                    }
+                }
+                
+                validDocuments.push({
+                    id: file.name, // Dosya adını ID olarak kullan
+                    name: file.name, // Dosya adını da ekle
+                    neighborhood_name: neighborhood_name,
+                    month: month,
+                    year: year,
+                    resource: fileName.includes('_elektrik') || fileName.includes('-elektrik') ? 'elektrik' : 
+                             fileName.includes('_su') || fileName.includes('-su') ? 'su' : 
+                             fileName.includes('_dogalgaz') || fileName.includes('-dogalgaz') ? 'dogalgaz' : 'all',
+                    download_url: urlData.publicUrl,
+                    report_date: file.created_at || file.updated_at || new Date().toISOString(),
+                    created_at: file.created_at || new Date().toISOString()
+                });
+            } catch (fileError) {
+                console.warn(`⚠️ Dosya işlenirken hata (${file.name}):`, fileError.message);
+                // Hata olsa bile devam et
+            }
+        }
+        
+        console.log(`✅ ${validDocuments.length} geçerli belge döndürülüyor (toplam ${data?.length || 0} dosya)`);
+        
+        res.json({ success: true, data: validDocuments });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
@@ -429,8 +443,43 @@ exports.generateReport = async (req, res) => {
         const fileName = `rapor_${y}_${String(m).padStart(2, '0')}_${cleanMahalle}${resourceSuffix}`;
         console.log('📄 PDF oluşturuluyor, dosya adı:', fileName, 'Resource:', resource, 'Mahalle:', mahalle);
         
-        // Overwrite seçeneği ile PDF oluştur
-        const publicUrl = await generateAndUploadReport(reportData, fileName, { overwrite: true });
+        // Aynı mahalle/ay/yıl/kaynak için mevcut PDF kontrolü
+        try {
+            const { data: existingFiles, error: listError } = await supabase.storage
+                .from('analiz-raporlari')
+                .list('reports');
+            
+            if (!listError && existingFiles && existingFiles.length > 0) {
+                // Aynı mahalle, ay, yıl ve kaynak için dosya var mı kontrol et
+                // Dosya adı formatı: rapor_2025_12_Aksaray_su-UUID.pdf
+                // UUID'yi kaldırarak karşılaştır
+                const baseFileNamePattern = fileName; // rapor_2025_12_Aksaray_su
+                const existingFile = existingFiles.find(f => {
+                    const nameWithoutExt = f.name.replace('.pdf', '');
+                    // UUID formatı: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (36 karakter)
+                    // Son tire'den sonra UUID başlar
+                    const uuidPattern = /-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                    const nameWithoutUUID = nameWithoutExt.replace(uuidPattern, '');
+                    // Base dosya adı ile karşılaştır
+                    return nameWithoutUUID === baseFileNamePattern;
+                });
+                
+                if (existingFile) {
+                    console.log('⚠️ Aynı mahalle/ay/yıl/kaynak için zaten PDF mevcut:', existingFile.name);
+                    return res.status(400).json({ 
+                        success: false, 
+                        message: `${mahalle} mahallesi için ${month}/${year} - ${resource === 'all' ? 'Tüm Kaynaklar' : (resource === 'elektrik' ? 'Elektrik' : resource === 'su' ? 'Su' : 'Doğalgaz')} raporu zaten mevcut. Lütfen mevcut raporu kullanın veya farklı bir filtre seçin.`,
+                        existingFile: existingFile.name
+                    });
+                }
+            }
+        } catch (checkError) {
+            console.warn("⚠️ Mevcut dosya kontrolü sırasında hata (devam ediliyor):", checkError.message);
+            // Hata olsa bile PDF oluşturmaya devam et
+        }
+        
+        // Her zaman yeni PDF oluştur (UUID ile, overwrite yok)
+        const publicUrl = await generateAndUploadReport(reportData, fileName);
         
         console.log('✅ PDF oluşturuldu ve Supabase\'e yüklendi:', publicUrl);
         res.json({ success: true, data: { downloadUrl: publicUrl } });
