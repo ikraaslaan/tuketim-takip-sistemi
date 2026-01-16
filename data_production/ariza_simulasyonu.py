@@ -19,26 +19,34 @@ def ariza_uygula(mahalle_adi, veri_paketi, db_aktif_bakimlar, db):
     # ---------------------------------------------------------
     # Eğer incidents tablosunda bu mahallede bir kayıt varsa (Planlı/Zorunlu Kesinti)
     if mahalle_adi in db_aktif_bakimlar:
-        bakimdaki_kaynaklar = db_aktif_bakimlar[mahalle_adi] # Örn: ["Su", "Elektrik"]
+        bakimdaki_kaynaklar = db_aktif_bakimlar[mahalle_adi] # Örn: ["Su", "Elektrik", "Dogalgaz"]
         
-        for kaynak in bakimdaki_kaynaklar:
+        for ham_kaynak in bakimdaki_kaynaklar:
+            
+            # --- DÜZELTME BAŞLANGICI (g - ğ Sorunu Çözümü) ---
+            # Bakım servisinden "Dogalgaz" gelse bile biz alarm tablosunda "Doğalgaz" arayalım.
+            aranacak_kaynak = ham_kaynak
+            if ham_kaynak == "Dogalgaz":
+                aranacak_kaynak = "Doğalgaz"
+            # -------------------------------------------------
+
             # EĞER INCIDENTS TABLOSUNDA KAYIT VARSA, ALARM TABLOSUNU TEMİZLE
-            # Çünkü artık bu yönetilen bir olay, alarm vermeye gerek yok.
             silme_sonucu = col_alarmlar.delete_many({
                 "Mahalle": mahalle_adi,
-                "Kaynak": kaynak
+                "Kaynak": aranacak_kaynak # Düzeltilmiş ismi kullanıyoruz
             })
             
             if silme_sonucu.deleted_count > 0:
-                print(f"✅ ÇAKIŞMA ÇÖZÜLDÜ: {mahalle_adi} - {kaynak} için 'incidents' kaydı bulundu. Aktif alarm silindi.")
+                print(f"✅ ÇAKIŞMA ÇÖZÜLDÜ: {mahalle_adi} - {aranacak_kaynak} için 'incidents' kaydı bulundu. Aktif alarm silindi.")
 
             # AYRICA HAFIZAMIZDAN DA SİLELİM (Artık simülasyon arıza üretmesin)
             if mahalle_adi in SIMULASYON_HAFIZASI:
                 hafizadaki_ariza = SIMULASYON_HAFIZASI[mahalle_adi]
-                if hafizadaki_ariza == kaynak:
+                # Hafızadaki arıza ile gelen bakım emrini karşılaştırırken de aynı düzeltmeyi yapıyoruz
+                if hafizadaki_ariza == aranacak_kaynak:
                     del SIMULASYON_HAFIZASI[mahalle_adi]
 
-        # Bakım/Kesinti olduğu için veri paketini değiştirmeden (veya main.py'de sıfırlanmış haliyle) dönüyoruz.
+        # Bakım/Kesinti olduğu için veri paketini değiştirmeden dönüyoruz.
         return yeni_veri, None
 
     # ---------------------------------------------------------
@@ -48,7 +56,6 @@ def ariza_uygula(mahalle_adi, veri_paketi, db_aktif_bakimlar, db):
         bozuk_kaynak = SIMULASYON_HAFIZASI[mahalle_adi]
         
         # Hafızada arıza var, peki Alarm tablosunda hala duruyor mu?
-        # (Belki admin incidents'a eklemedi ama alarmı sildi)
         aktif_alarm_var_mi = col_alarmlar.find_one({
             "Mahalle": mahalle_adi,
             "Kaynak": bozuk_kaynak
@@ -60,7 +67,7 @@ def ariza_uygula(mahalle_adi, veri_paketi, db_aktif_bakimlar, db):
             return yeni_veri, None
             
         else:
-            # Arıza devam ediyor
+            # Arıza devam ediyor (Buradaki isimler random.choice'dan gelen "Doğalgaz" ile aynı)
             if bozuk_kaynak == "Elektrik":
                 yeni_veri["Elektrik_Tuketim"] *= 5.0
                 olay_logu = f"🔥 {mahalle_adi}: Elektrik kaçağı DEVAM EDİYOR!"
@@ -76,8 +83,9 @@ def ariza_uygula(mahalle_adi, veri_paketi, db_aktif_bakimlar, db):
     # ---------------------------------------------------------
     # 3. ADIM: YENİ RASTGELE ARIZA OLUŞTURMA
     # ---------------------------------------------------------
-    if random.random() < 0.001: # %1 İhtimal
+    if random.random() < 0.010: # %0.1 İhtimal
         
+        # BURADA "Doğalgaz" (yumuşak g) kullanıyoruz.
         zar = random.choice(["Elektrik", "Su", "Doğalgaz"])
         
         SIMULASYON_HAFIZASI[mahalle_adi] = zar
@@ -98,7 +106,7 @@ def ariza_uygula(mahalle_adi, veri_paketi, db_aktif_bakimlar, db):
             yeni_veri["Su_Tuketim"] *= 10.0
             olay_logu = f"💥 DİKKAT: {mahalle_adi} bölgesinde YENİ Su patlağı!"
         elif zar == "Doğalgaz":
-            yeni_veri["Dogalgaz_Tuketim"] *= 8.0
+            yeni_veri["Dogalgaz_Tuketim"] *= 8.0 # Burada JSON key'i (Dogalgaz_Tuketim) "g" ile, doğru.
             olay_logu = f"💥 DİKKAT: {mahalle_adi} bölgesinde YENİ Doğalgaz kaçağı!"
 
     return yeni_veri, olay_logu
