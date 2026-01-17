@@ -78,25 +78,75 @@ const MahalleDetayModal = ({ mahalleData: initialData, onClose, onIncidentCreate
         return Math.max(0, baseValue + fluctuation); // Ensure non-negative
     };
 
-    // --- 1. BAŞLANGIÇ: ELİMİZDEKİ TEK VERİYİ 24 KERE YAZIYORUZ (WITH FLUCTUATIONS) ---
+    // --- 1. BAŞLANGIÇ: EN SON KAYDI ÇEK VE GÖSTER ---
     useEffect(() => {
-        let baseValue = 0;
-        if (selectedSource === 'Elektrik') baseValue = Number(initialData.elektrik.ortalama);
-        else if (selectedSource === 'Su') baseValue = Number(initialData.su.ortalama);
-        else if (selectedSource === 'Doğalgaz') baseValue = Number(initialData.dogalgaz.ortalama);
+        const fetchInitialData = async () => {
+            try {
+                // Modal açıldığında en son kaydı çek
+                const response = await api.get('/stats/latest');
+                const allData = response.data.data;
+                const myMahalle = allData.find(m => m.mahalle === initialData.mahalle);
+                
+                let mahalleData = myMahalle || initialData;
+                setCurrentValues(mahalleData);
+                
+                let baseValue = 0;
+                if (selectedSource === 'Elektrik') baseValue = Number(mahalleData.elektrik?.ortalama || 0);
+                else if (selectedSource === 'Su') baseValue = Number(mahalleData.su?.ortalama || 0);
+                else if (selectedSource === 'Doğalgaz') baseValue = Number(mahalleData.dogalgaz?.ortalama || 0);
 
-        // Create initial graph with realistic fluctuations
-        const initialGraph = Array.from({ length: 24 }, () => addFluctuations(baseValue, selectedSource));
-        setGraphData(initialGraph);
-        setCurrentValues(initialData);
-    }, [selectedSource, initialData]);
+                // Eğer baseValue 0 ise veya geçersizse, grafik oluşturma
+                if (baseValue > 0) {
+                    // Create initial graph with realistic fluctuations
+                    // Son değer (en sağdaki) kesinlikle baseValue olmalı, diğerleri dalgalanmalı
+                    const initialGraph = Array.from({ length: 24 }, (_, index) => {
+                        if (index === 23) {
+                            // Son değer (en sağdaki) kesinlikle baseValue
+                            return baseValue;
+                        }
+                        // Diğer değerler için dalgalanma ekle
+                        return addFluctuations(baseValue, selectedSource);
+                    });
+                    setGraphData(initialGraph);
+                    console.log(`📊 Grafik oluşturuldu (${selectedSource}):`, baseValue, '24 nokta, son değer:', baseValue);
+                } else {
+                    console.warn(`⚠️ ${selectedSource} için geçerli veri bulunamadı:`, baseValue);
+                    // Boş grafik göster
+                    setGraphData(Array.from({ length: 24 }, () => 0));
+                }
+            } catch (error) {
+                console.error("İlk veri çekme hatası:", error);
+                // Hata durumunda initialData'yı kullan
+                setCurrentValues(initialData);
+                let baseValue = 0;
+                if (selectedSource === 'Elektrik') baseValue = Number(initialData.elektrik?.ortalama || 0);
+                else if (selectedSource === 'Su') baseValue = Number(initialData.su?.ortalama || 0);
+                else if (selectedSource === 'Doğalgaz') baseValue = Number(initialData.dogalgaz?.ortalama || 0);
+                
+                if (baseValue > 0) {
+                    // Son değer (en sağdaki) kesinlikle baseValue olmalı
+                    const initialGraph = Array.from({ length: 24 }, (_, index) => {
+                        if (index === 23) {
+                            return baseValue;
+                        }
+                        return addFluctuations(baseValue, selectedSource);
+                    });
+                    setGraphData(initialGraph);
+                } else {
+                    setGraphData(Array.from({ length: 24 }, () => 0));
+                }
+            }
+        };
+        
+        fetchInitialData();
+    }, [selectedSource, initialData.mahalle]);
 
-    // --- 2. CANLI GÜNCELLEME: HER 15 SANİYEDE BİR ---
+    // --- 2. VERİ GÜNCELLEME: HER 30 SANİYEDE BİR (EN SON KAYITLAR) ---
     useEffect(() => {
         const fetchRealTimeData = async () => {
             try {
-                // --- DÜZELTME 1: ARTIK YENİ CANLI ROTA'YA GİDİYORUZ ---
-                const response = await api.get('/incidents/live-dashboard'); 
+                // Her mahalle için en son kaydı çek (ortalama değil, en son kayıt)
+                const response = await api.get('/stats/latest'); 
                 
                 const allData = response.data.data;
                 const myMahalle = allData.find(m => m.mahalle === initialData.mahalle);
@@ -109,10 +159,11 @@ const MahalleDetayModal = ({ mahalleData: initialData, onClose, onIncidentCreate
                     else if (selectedSource === 'Su') baseValue = Number(myMahalle.su.ortalama);
                     else if (selectedSource === 'Doğalgaz') baseValue = Number(myMahalle.dogalgaz.ortalama);
 
-                    // Add realistic fluctuation to the new value
-                    const newValue = addFluctuations(baseValue, selectedSource);
+                    // Son değer (en sağdaki) kesinlikle baseValue olmalı (dalgalanma yok)
+                    // Bu değer soldaki kutucukta gösterilen değerle aynı olmalı
+                    const newValue = baseValue; // Dalgalanma ekleme, direkt baseValue kullan
 
-                    console.log(`📡 Canlı Veri Alındı (${selectedSource}):`, newValue);
+                    console.log(`📡 En Son Kayıt Güncellendi (${selectedSource}):`, newValue, 'Orijinal:', baseValue);
 
                     setGraphData(prevData => {
                         const newData = [...prevData.slice(1), newValue];
@@ -121,11 +172,11 @@ const MahalleDetayModal = ({ mahalleData: initialData, onClose, onIncidentCreate
                     setLastUpdate(new Date());
                 }
             } catch (error) {
-                console.error("Canlı veri hatası:", error);
+                console.error("Veri güncelleme hatası:", error);
             }
         };
 
-        const interval = setInterval(fetchRealTimeData, 15000); 
+        const interval = setInterval(fetchRealTimeData, 30000); 
         return () => clearInterval(interval);
 
     }, [selectedSource, initialData.mahalle]); 
@@ -183,7 +234,7 @@ const MahalleDetayModal = ({ mahalleData: initialData, onClose, onIncidentCreate
               </h2>
               <p className="text-gray-400 text-sm mt-1 flex items-center gap-2">
                 <Activity size={14} className="animate-pulse text-green-400"/> 
-                Canlı Veri (15sn) • Son Güncelleme: {lastUpdate.toLocaleTimeString()}
+                Veritabanı Verileri (30sn) • Son Güncelleme: {lastUpdate.toLocaleTimeString()}
               </p>
             </div>
             
@@ -211,25 +262,35 @@ const MahalleDetayModal = ({ mahalleData: initialData, onClose, onIncidentCreate
                         <BarChart2 className="text-emerald-600"/> {selectedSource} Tüketim Grafiği
                     </h3>
                     <span className="px-3 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full border border-emerald-200">
-                        GERÇEK ZAMANLI
+                        VERİTABANI VERİLERİ
                     </span>
                 </div>
 
                 <div className="flex-1 flex items-end justify-between gap-1 relative border-b border-l border-gray-200 p-4 min-h-[300px]">
-                   {graphData.map((val, i) => (
-                      <div key={i} className="flex-1 flex flex-col justify-end items-center group h-full relative z-10">
-                        <div className="absolute -top-10 bg-gray-900 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none">
-                            {Number(val).toFixed(2)}
-                        </div>
-                        <div 
-                            className={`w-full rounded-t-sm transition-all duration-500 ease-in-out ${
-                                selectedSource === 'Elektrik' ? 'bg-yellow-400 hover:bg-yellow-500' : 
-                                selectedSource === 'Su' ? 'bg-blue-400 hover:bg-blue-500' : 'bg-orange-400 hover:bg-orange-500'
-                            }`}
-                            style={{height: `${Math.min((val / (Math.max(...graphData, 1))) * 100, 100)}%`}}
-                        />
+                   {graphData.length > 0 ? (
+                      graphData.map((val, i) => {
+                        const maxValue = Math.max(...graphData, 1);
+                        const heightPercent = maxValue > 0 ? Math.min((val / maxValue) * 100, 100) : 0;
+                        return (
+                          <div key={i} className="flex-1 flex flex-col justify-end items-center group h-full relative z-10">
+                            <div className="absolute -top-10 bg-gray-900 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none">
+                                {Number(val).toFixed(2)}
+                            </div>
+                            <div 
+                                className={`w-full rounded-t-sm transition-all duration-500 ease-in-out ${
+                                    selectedSource === 'Elektrik' ? 'bg-yellow-400 hover:bg-yellow-500' : 
+                                    selectedSource === 'Su' ? 'bg-blue-400 hover:bg-blue-500' : 'bg-orange-400 hover:bg-orange-500'
+                                }`}
+                                style={{height: `${heightPercent}%`}}
+                            />
+                          </div>
+                        );
+                      })
+                   ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400">
+                        <p>Grafik verileri yükleniyor...</p>
                       </div>
-                   ))}
+                   )}
                 </div>
                 
                 <div className="flex justify-between text-[10px] text-gray-400 mt-2 font-mono">
@@ -257,8 +318,8 @@ const Mahalleler = () => {
         try {
             setMahalleler(prev => { if(prev.length === 0) setLoading(true); return prev; });
             
-            // --- DÜZELTME 2: ANA SAYFA KARTLARI DA CANLI VERİ GÖSTERSİN ---
-            const response = await api.get('/incidents/live-dashboard');
+            // En son (güncel) veritabanı verilerini çek (ortalama değil, en son kayıt)
+            const response = await api.get('/stats/latest');
             
             setMahalleler(response.data.data);
         } catch (error) { console.error("Veri çekme hatası:", error); } 
@@ -267,7 +328,8 @@ const Mahalleler = () => {
 
     useEffect(() => {
         fetchData();
-        const interval = setInterval(fetchData, 15000); 
+        // Her 30 saniyede bir güncelle (canlı güncelleme yerine daha stabil)
+        const interval = setInterval(fetchData, 30000); 
         return () => clearInterval(interval);
     }, [fetchData]);
 
@@ -306,9 +368,9 @@ const Mahalleler = () => {
                                 <MapPin size={20} className="text-emerald-500" />
                             </div>
                             <div className="space-y-4 mb-8 flex-1">
-                                <StatRow icon={Zap} label="Ort. Elektrik" value={mahalle.elektrik.ortalama} unit="kWh" color="text-emerald-700" iconColor="text-yellow-500" bgColor="bg-yellow-50" />
-                                <StatRow icon={Droplets} label="Ort. Su" value={mahalle.su.ortalama} unit="m³" color="text-blue-700" iconColor="text-blue-500" bgColor="bg-blue-50" />
-                                <StatRow icon={Flame} label="Ort. Doğalgaz" value={mahalle.dogalgaz.ortalama} unit="m³" color="text-orange-700" iconColor="text-orange-500" bgColor="bg-orange-50" />
+                                <StatRow icon={Zap} label="Güncel Elektrik" value={mahalle.elektrik.ortalama} unit="kWh" color="text-emerald-700" iconColor="text-yellow-500" bgColor="bg-yellow-50" />
+                                <StatRow icon={Droplets} label="Güncel Su" value={mahalle.su.ortalama} unit="m³" color="text-blue-700" iconColor="text-blue-500" bgColor="bg-blue-50" />
+                                <StatRow icon={Flame} label="Güncel Doğalgaz" value={mahalle.dogalgaz.ortalama} unit="m³" color="text-orange-700" iconColor="text-orange-500" bgColor="bg-orange-50" />
                             </div>
                             <button onClick={() => setSelectedMahalle(mahalle)} className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-xl font-bold transition-all shadow-md group-hover:scale-[1.02] active:scale-95 cursor-pointer">
                                 <Activity size={20} /> Mahalleyi Görüntüle

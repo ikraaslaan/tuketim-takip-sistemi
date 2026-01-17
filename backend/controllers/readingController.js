@@ -50,8 +50,8 @@ exports.getLatestReadingsByNeighborhood = async (req, res) => {
         // Yeni yapı: Tek bir kayıt tüm kaynakları içerir
         const latestReading = await Reading.findOne({ 
             Mahalle: mahalleAdi
-        })
-        .sort({ Tarih: -1 }) // En son tarihi getir
+            })
+            .sort({ Tarih: -1 }) // En son tarihi getir
         .limit(1)
         .select('Mahalle Tarih Elektrik_Tuketim Su_Tuketim Dogalgaz_Tuketim');
 
@@ -183,7 +183,7 @@ async function calculateMonthlyStats(date) {
                     Ort: { $avg: "$Elektrik_Tuketim" },
                     Zirve: { $max: "$Elektrik_Tuketim" },
                     Dusuk: { $min: "$Elektrik_Tuketim" }
-                },
+        },
                 Su: {
                     Ort: { $avg: "$Su_Tuketim" },
                     Zirve: { $max: "$Su_Tuketim" },
@@ -214,8 +214,8 @@ async function calculateMonthlyStats(date) {
                     Ort: { $round: ["$Dogalgaz.Ort", 2] },
                     Zirve: { $round: ["$Dogalgaz.Zirve", 2] },
                     Dusuk: { $round: ["$Dogalgaz.Dusuk", 2] }
-                }
             }
+        }
         },
         { $sort: { Mahalle: 1 } }
     ]);
@@ -257,7 +257,7 @@ exports.getTimeSeriesAnalysis = async (req, res) => {
                     dogalgaz: { $avg: "$Dogalgaz_Tuketim" }
                 }
             },
-            { 
+            {
                 $project: {
                     _id: 0,
                     ay: "$_id",

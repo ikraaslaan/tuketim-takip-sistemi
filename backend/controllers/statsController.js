@@ -1,4 +1,5 @@
 const Reading = require('../models/Reading');
+const Incident = require('../models/Incident');
 
 /**
  * Test endpoint - Veritabanında kaç kayıt var kontrol et
@@ -82,6 +83,130 @@ exports.getDashboardStats = async (req, res) => {
 };
 
 /**
+ * Her mahalle için en son kaydı getir (modal için)
+ * Aktif kesintiler varsa, o kaynaklar için 0 döndürür
+ * GET /api/stats/latest
+ */
+exports.getLatestReadings = async (req, res) => {
+  try {
+    // Her mahalle için en son kaydı getir
+    const latestReadings = await Reading.aggregate([
+      {
+        $sort: { Tarih: -1 } // En yeni kayıtlar önce
+      },
+      {
+        $group: {
+          _id: '$Mahalle',
+          // En son kaydın tüm alanlarını al
+          Elektrik_Tuketim: { $first: '$Elektrik_Tuketim' },
+          Su_Tuketim: { $first: '$Su_Tuketim' },
+          Dogalgaz_Tuketim: { $first: '$Dogalgaz_Tuketim' },
+          Tarih: { $first: '$Tarih' }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          mahalle: '$_id',
+          elektrik: {
+            ortalama: { $round: ['$Elektrik_Tuketim', 2] }
+          },
+          su: {
+            ortalama: { $round: ['$Su_Tuketim', 2] }
+          },
+          dogalgaz: {
+            ortalama: { $round: ['$Dogalgaz_Tuketim', 2] }
+          },
+          tarih: '$Tarih'
+        }
+      },
+      {
+        $sort: { mahalle: 1 }
+      }
+    ]);
+
+    // Aktif kesintileri kontrol et
+    const now = new Date();
+    // Hem planlı hem anlık kesintileri kontrol et
+    // Planlı kesintiler: Baslangic_Tarihi <= now <= Bitis_Tarihi ve Durum = 'Aktif'
+    // Anlık kesintiler: Baslangic_Tarihi <= now ve Durum = 'Aktif' (Bitis_Tarihi kontrolü yok)
+    const activeIncidents = await Incident.find({
+      Durum: { $in: ['Aktif', 'AKTIF'] },
+      Baslangic_Tarihi: { $lte: now },
+      $or: [
+        { 
+          // Planlı kesintiler: Bitis_Tarihi var ve >= now
+          Bitis_Tarihi: { $exists: true, $ne: null, $gte: now }
+        },
+        { 
+          // Anlık kesintiler: Bitis_Tarihi yok veya null
+          $or: [
+            { Bitis_Tarihi: { $exists: false } },
+            { Bitis_Tarihi: null }
+          ]
+        }
+      ]
+    });
+
+    // Mahalle ve kaynak bazında aktif kesintileri grupla
+    const incidentMap = {};
+    activeIncidents.forEach(incident => {
+      const mahalle = incident.Mahalle;
+      const kaynak = incident.Kaynak_Tipi;
+      
+      if (!incidentMap[mahalle]) {
+        incidentMap[mahalle] = new Set();
+      }
+      // Kaynak tipini normalize et (Doğalgaz -> Dogalgaz)
+      const normalizedKaynak = kaynak === 'Doğalgaz' ? 'Dogalgaz' : kaynak;
+      incidentMap[mahalle].add(normalizedKaynak);
+    });
+
+    // Aktif kesintiler varsa, ilgili kaynakların değerlerini 0 yap
+    const result = latestReadings.map(reading => {
+      const mahalle = reading.mahalle;
+      const activeSources = incidentMap[mahalle];
+      
+      if (activeSources && activeSources.size > 0) {
+        // Bu mahalle için aktif kesinti var
+        const updatedReading = { ...reading };
+        
+        // Aktif kesinti olan kaynakların değerlerini 0 yap
+        if (activeSources.has('Elektrik')) {
+          updatedReading.elektrik.ortalama = 0;
+          console.log(`🔌 ${mahalle} için Elektrik kesintisi aktif - değer 0 yapıldı`);
+        }
+        if (activeSources.has('Su')) {
+          updatedReading.su.ortalama = 0;
+          console.log(`💧 ${mahalle} için Su kesintisi aktif - değer 0 yapıldı`);
+        }
+        if (activeSources.has('Dogalgaz')) {
+          updatedReading.dogalgaz.ortalama = 0;
+          console.log(`🔥 ${mahalle} için Doğalgaz kesintisi aktif - değer 0 yapıldı`);
+        }
+        
+        return updatedReading;
+      }
+      
+      return reading;
+    });
+
+    res.json({
+      success: true,
+      data: result,
+      count: result.length
+    });
+  } catch (error) {
+    console.error('Latest readings error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'En son kayıtlar alınırken hata oluştu',
+      error: error.message
+    });
+  }
+};
+
+/**
  * Zaman serisi verileri (son 7 gün veya tüm veriler)
  * GET /api/stats/timeseries?mahalle=Aksaray&kaynak=elektrik&days=7
  */
@@ -124,13 +249,19 @@ exports.getTimeSeries = async (req, res) => {
     }
 
     // Zaman serisi verilerini çek
+    // ÖNEMLİ: Her gün için en son kaydı almak için önce tarih bazında sıralama yapıyoruz
     const timeSeriesData = await Reading.aggregate([
       {
         $match: matchStage
       },
+      // Önce tüm kayıtları tarih ve saat bazında sırala (en yeni önce)
+      {
+        $sort: { Tarih: -1 }
+      },
       {
         $project: {
           _id: 0,
+          Tarih: 1, // Orijinal tarih alanını koru (sıralama için)
           tarih: {
             $dateToString: {
               format: '%Y-%m-%d',
@@ -140,17 +271,19 @@ exports.getTimeSeries = async (req, res) => {
           tuketim: `$${fieldName}`
         }
       },
+      // Tarih bazında grupla ve her gün için en son kaydı al (ilk kayıt, çünkü en yeni önce sıraladık)
       {
         $group: {
           _id: '$tarih',
-          ortalama: { $avg: '$tuketim' }
+          value: { $first: '$tuketim' }, // En son kaydı al (ortalama yerine)
+          Tarih: { $first: '$Tarih' } // En son tarihi al
         }
       },
       {
         $project: {
           _id: 0,
           tarih: '$_id',
-          value: { $round: ['$ortalama', 2] }
+          value: { $round: ['$value', 2] }
         }
       },
       {

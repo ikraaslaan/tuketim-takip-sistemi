@@ -5,6 +5,9 @@ const statsController = require('../controllers/statsController');
 // Dashboard için mahalle bazlı ortalama veriler
 router.get('/dashboard', statsController.getDashboardStats);
 
+// Her mahalle için en son kayıt (modal için)
+router.get('/latest', statsController.getLatestReadings);
+
 // Zaman serisi verileri (son 7 gün)
 router.get('/timeseries', statsController.getTimeSeries);
 
