@@ -17,6 +17,23 @@ const ArizaYonetimi = () => {
   useEffect(() => {
     fetchData();
     fetchNeighborhoods();
+    
+    // Her 30 saniyede bir verileri otomatik yenile
+    const interval = setInterval(() => {
+      fetchData();
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, []);
+  
+  // Sayfa görünür olduğunda (focus) verileri yenile
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchData();
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
   const fetchNeighborhoods = async () => {

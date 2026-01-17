@@ -27,6 +27,28 @@ exports.createInstantIncident = async (req, res) => {
         const savedIncident = await newIncident.save();
         console.log(`✅ Anlık arıza MongoDB'ye kaydedildi: ${savedIncident._id}, Mahalle: ${Mahalle}, Kaynak: ${Kaynak_Tipi}`);
 
+        // Veritabanına 0 değerli tüketim kaydı ekle
+        try {
+            const now = new Date();
+            // Önce o mahalle için en son kaydı bul
+            const lastReading = await Reading.findOne({ Mahalle }).sort({ Tarih: -1 });
+            
+            // Yeni kayıt oluştur - kesinti olan kaynak 0, diğerleri son kayıttan al
+            const newReading = new Reading({
+                Mahalle,
+                Tarih: now,
+                Elektrik_Tuketim: normalizedKaynak === 'Elektrik' ? 0 : (lastReading?.Elektrik_Tuketim || 0),
+                Su_Tuketim: normalizedKaynak === 'Su' ? 0 : (lastReading?.Su_Tuketim || 0),
+                Dogalgaz_Tuketim: normalizedKaynak === 'Dogalgaz' ? 0 : (lastReading?.Dogalgaz_Tuketim || 0)
+            });
+            
+            await newReading.save();
+            console.log(`✅ ${Mahalle} için ${normalizedKaynak} kesintisi nedeniyle 0 değerli kayıt eklendi`);
+        } catch (readingError) {
+            console.error('Tüketim kaydı ekleme hatası:', readingError);
+            // Kayıt hatası olsa bile arıza kaydını başarılı döndür
+        }
+
         // Anlık arıza bildirimi gönder - İlgili mahalledeki tüm doğrulanmış subscriber'lara
         try {
             const subscribers = await Subscriber.find({ 
@@ -106,6 +128,30 @@ exports.createPlannedIncident = async (req, res) => {
         // Önce MongoDB'ye kaydet
         const savedIncident = await newIncident.save();
         console.log(`✅ Planlı kesinti MongoDB'ye kaydedildi: ${savedIncident._id}, Mahalle: ${Mahalle}, Kaynak: ${Kaynak_Tipi}`);
+
+        // Eğer başlangıç tarihi şu anki zamandan önce veya şimdi ise, veritabanına 0 değerli kayıt ekle
+        const now = new Date();
+        if (baslangic <= now && bitis >= now) {
+            try {
+                // Önce o mahalle için en son kaydı bul
+                const lastReading = await Reading.findOne({ Mahalle }).sort({ Tarih: -1 });
+                
+                // Yeni kayıt oluştur - kesinti olan kaynak 0, diğerleri son kayıttan al
+                const newReading = new Reading({
+                    Mahalle,
+                    Tarih: now,
+                    Elektrik_Tuketim: normalizedKaynak === 'Elektrik' ? 0 : (lastReading?.Elektrik_Tuketim || 0),
+                    Su_Tuketim: normalizedKaynak === 'Su' ? 0 : (lastReading?.Su_Tuketim || 0),
+                    Dogalgaz_Tuketim: normalizedKaynak === 'Dogalgaz' ? 0 : (lastReading?.Dogalgaz_Tuketim || 0)
+                });
+                
+                await newReading.save();
+                console.log(`✅ ${Mahalle} için ${normalizedKaynak} planlı kesintisi nedeniyle 0 değerli kayıt eklendi`);
+            } catch (readingError) {
+                console.error('Tüketim kaydı ekleme hatası:', readingError);
+                // Kayıt hatası olsa bile kesinti kaydını başarılı döndür
+            }
+        }
 
         // Planlı kesinti bildirimi gönder - İlgili mahalledeki tüm doğrulanmış subscriber'lara
         try {
@@ -195,6 +241,26 @@ exports.getPlannedIncidents = async (req, res) => {
                     // Durumu otomatik olarak Aktif yap
                     incident.Durum = 'Aktif';
                     await incident.save();
+                    
+                    // Veritabanına 0 değerli tüketim kaydı ekle
+                    try {
+                        const normalizedKaynak = incident.Kaynak_Tipi === 'Doğalgaz' ? 'Dogalgaz' : incident.Kaynak_Tipi;
+                        const lastReading = await Reading.findOne({ Mahalle: incident.Mahalle }).sort({ Tarih: -1 });
+                        
+                        const newReading = new Reading({
+                            Mahalle: incident.Mahalle,
+                            Tarih: now,
+                            Elektrik_Tuketim: normalizedKaynak === 'Elektrik' ? 0 : (lastReading?.Elektrik_Tuketim || 0),
+                            Su_Tuketim: normalizedKaynak === 'Su' ? 0 : (lastReading?.Su_Tuketim || 0),
+                            Dogalgaz_Tuketim: normalizedKaynak === 'Dogalgaz' ? 0 : (lastReading?.Dogalgaz_Tuketim || 0)
+                        });
+                        
+                        await newReading.save();
+                        console.log(`✅ ${incident.Mahalle} için ${normalizedKaynak} planlı kesintisi aktif oldu - 0 değerli kayıt eklendi`);
+                    } catch (readingError) {
+                        console.error('Tüketim kaydı ekleme hatası:', readingError);
+                    }
+                    
                     console.log(`✅ Planlı kesinti otomatik olarak Aktif yapıldı: ${incident._id}, Mahalle: ${incident.Mahalle}`);
                 }
             }
